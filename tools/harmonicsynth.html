@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>倍音加算シンセサイザー</title>
+<style>
+  :root{
+    --bg:#020617; --card:#0b1222; --fg:#e5edff; --muted:#9fb0ff;
+    --sky:#60a5fa; --green:#34d399; --orange:#fb923c;
+  }
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system}
+  .wrap{max-width:1200px;margin:16px auto;padding:0 12px}
+  h1{font-size:22px;margin:8px 0}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:12px}
+  .grid{display:grid;grid-template-columns:360px 1fr;gap:12px}
+  .card{background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:12px}
+  .row{display:grid;grid-template-columns:1fr 90px;gap:8px;align-items:center}
+  label{font-size:12px;color:var(--muted)}
+  input[type=range]{width:100%}
+  input[type=number]{background:#0003;color:var(--fg);border:1px solid #fff2;border-radius:10px;padding:6px}
+  button{border-radius:12px;border:1px solid #fff3;background:#fff1;color:var(--fg);padding:8px 12px;cursor:pointer}
+  .btns{display:flex;gap:8px}
+  canvas{width:100%;border-radius:12px;border:1px solid #fff2;background:#0003}
+  .can2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .note{font-size:12px;color:var(--muted);line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>音の三要素 体感教材（dB軸＋FFT対数周波数）</h1>
+  <div class="sub">波形・FFTともにY軸はdB、FFTのX軸は対数表示（20 Hz – 10 kHz）</div>
+
+  <div class="grid">
+    <!-- Controls -->
+    <div class="card">
+      <label>音量 (dB)</label>
+      <div class="row">
+        <input id="volS" type="range" min="-60" max="0" step="0.1" value="-24">
+        <input id="volN" type="number" min="-60" max="0" step="0.1" value="-24">
+      </div>
+
+      <label>基音周波数 (Hz)</label>
+      <div class="row">
+        <input id="fS" type="range" min="0" max="1000" step="1">
+        <input id="fN" type="number" min="20" max="2000" step="0.1" value="440">
+      </div>
+      <div class="note">※スライダーはログ感覚</div>
+
+      <label>奇数次倍音</label>
+      <div class="row">
+        <input id="oddS" type="range" min="0" max="2" step="0.01" value="0.8">
+        <input id="oddN" type="number" min="0" max="2" step="0.01" value="0.8">
+      </div>
+
+      <label>偶数次倍音</label>
+      <div class="row">
+        <input id="evenS" type="range" min="0" max="2" step="0.01" value="0">
+        <input id="evenN" type="number" min="0" max="2" step="0.01" value="0">
+      </div>
+
+      <div class="btns" style="margin-top:8px">
+        <button id="toggle">▶ 再生</button>
+        <button id="reset">リセット</button>
+      </div>
+
+      <div class="note" style="margin-top:8px">
+        ・波形Y軸：|瞬時振幅|をdB化し、符号付き表示（教材用表現）<br>
+        ・FFT：実測dB＋理論倍音マーカー（奇=緑 / 偶=橙）
+      </div>
+    </div>
+
+    <!-- Canvases -->
+    <div class="card">
+      <div class="can2">
+        <div>
+          <label>波形（2周期 / dB軸）</label>
+          <canvas id="wave" width="720" height="260"></canvas>
+        </div>
+        <div>
+          <label>FFT（dB / log Hz）</label>
+          <canvas id="fft" width="720" height="260"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:8px">
+    ＊ブラウザの自動再生制限のため、初回は「▶ 再生」をクリックしてください。
+  </div>
+</div>
+
+<script>
+/* -------- utils -------- */
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const dbToGain=db=>Math.pow(10,db/20);
+const ampToDb=(a,floor=-120)=>20*Math.log10(Math.max(Math.abs(a),Math.pow(10,floor/20)));
+const fMin=20,fMax=2000;
+const sliderToFreq=s=>fMin*Math.pow(fMax/fMin,clamp(s,0,1000)/1000);
+const freqToSlider=f=>Math.round(Math.log(f/fMin)/Math.log(fMax/fMin)*1000);
+const logX=(f,f0,f1,W)=>Math.log10(clamp(f,f0,f1)/f0)/Math.log10(f1/f0)*W;
+
+/* -------- UI sync -------- */
+function bind(s,n,cb){
+  s.oninput=()=>{n.value=s.value;cb(+n.value)};
+  n.onchange=()=>{s.value=n.value;cb(+n.value)};
+}
+bind(volS,volN,()=>updateGain());
+bind(oddS,oddN,()=>rebuild());
+bind(evenS,evenN,()=>rebuild());
+
+fS.value=freqToSlider(440);
+fS.oninput=()=>{const f=sliderToFreq(+fS.value); fN.value=f.toFixed(1); updateFreq(f)};
+fN.onchange=()=>{const f=clamp(+fN.value,20,2000); fS.value=freqToSlider(f); updateFreq(f)};
+
+reset.onclick=()=>{
+  volN.value=volS.value=-24;
+  oddN.value=oddS.value=0.8;
+  evenN.value=evenS.value=0;
+  fN.value=440; fS.value=freqToSlider(440);
+  rebuild(); updateGain(); updateFreq(440);
+};
+
+/* -------- Audio -------- */
+let ac,osc,gain,analyser,playing=false;
+async function ensure(){
+  if(ac) return;
+  ac=new(window.AudioContext||webkitAudioContext)();
+  gain=ac.createGain(); analyser=ac.createAnalyser();
+  analyser.fftSize=4096; analyser.minDecibels=-110; analyser.maxDecibels=-10;
+  gain.gain.value=dbToGain(+volN.value);
+  gain.connect(analyser); analyser.connect(ac.destination);
+}
+function buildHarm(){
+  const odd=+oddN.value, even=+evenN.value, N=32;
+  const a=new Array(N+1).fill(0); a[1]=1;
+  for(let n=2;n<=N;n++) a[n]=((n%2)?odd:even)/n;
+  // normalize
+  let peak=0;
+  for(let i=0;i<4096;i++){
+    let y=0,th=2*Math.PI*i/4096;
+    for(let n=1;n<=N;n++) y+=a[n]*Math.sin(n*th);
+    peak=Math.max(peak,Math.abs(y));
+  }
+  const s=peak?1/(peak*1.05):1;
+  return a.map(v=>v*s);
+}
+let amps=buildHarm();
+function rebuild(){
+  amps=buildHarm();
+  if(osc){
+    const real=new Float32Array(amps.length), imag=new Float32Array(amps.length);
+    amps.forEach((v,i)=>imag[i]=v);
+    osc.setPeriodicWave(ac.createPeriodicWave(real,imag,{disableNormalization:true}));
+  }
+}
+function updateGain(){ if(gain) gain.gain.setTargetAtTime(dbToGain(+volN.value),ac.currentTime,0.02);}
+function updateFreq(f){ if(osc) osc.frequency.setTargetAtTime(f,ac.currentTime,0.02);}
+
+toggle.onclick=async()=>{
+  await ensure(); await ac.resume();
+  if(!playing){
+    osc&&osc.stop();
+    osc=ac.createOscillator(); osc.frequency.value=+fN.value;
+    rebuild(); osc.connect(gain); osc.start();
+    toggle.textContent="■ 停止"; playing=true;
+  }else{
+    osc.stop(); osc=null; toggle.textContent="▶ 再生"; playing=false;
+  }
+};
+
+/* -------- Drawing -------- */
+const wcv=$("wave"), fcv=$("fft");
+const wctx=wcv.getContext("2d"), fctx=fcv.getContext("2d");
+
+function drawWave(){
+  const W=wcv.width,H=wcv.height,f0=+fN.value,vg=dbToGain(+volN.value);
+  wctx.clearRect(0,0,W,H);
+  wctx.strokeStyle="#6aa6ff"; wctx.lineWidth=2;
+  const dbFloor=-60;
+  // grid
+  wctx.strokeStyle="rgba(255,255,255,.1)";
+  wctx.beginPath(); wctx.moveTo(0,H/2); wctx.lineTo(W,H/2); wctx.stroke();
+  [0,-6,-12,-24,-48,dbFloor].forEach(d=>{
+    const n=clamp((d-dbFloor)/(0-dbFloor),0,1)*H*0.42;
+    wctx.beginPath(); wctx.moveTo(0,H/2-n); wctx.lineTo(W,H/2-n); wctx.stroke();
+    wctx.beginPath(); wctx.moveTo(0,H/2+n); wctx.lineTo(W,H/2+n); wctx.stroke();
+  });
+  // wave
+  wctx.beginPath();
+  for(let i=0;i<1024;i++){
+    const t=2*(1/f0)*i/1023;
+    let y=0; for(let n=1;n<amps.length;n++) y+=amps[n]*Math.sin(2*Math.PI*n*f0*t);
+    y*=vg;
+    const db=clamp(ampToDb(y,dbFloor),dbFloor,0);
+    const s=Math.sign(y)*clamp((db-dbFloor)/(0-dbFloor),0,1);
+    const x=i*W/1023, yy=H/2 - s*H*0.42;
+    i?wctx.lineTo(x,yy):wctx.moveTo(x,yy);
+  }
+  wctx.strokeStyle="#6aa6ff"; wctx.stroke();
+}
+
+function drawFFT(){
+  if(!analyser) return;
+  const W=fcv.width,H=fcv.height;
+  const data=new Float32Array(analyser.frequencyBinCount);
+  analyser.getFloatFrequencyData(data);
+  const sr=ac.sampleRate, ny=sr/2, f0=+fN.value;
+  const fA=20, fB=Math.min(10000,ny);
+  const minDb=analyser.minDecibels, maxDb=analyser.maxDecibels;
+
+  fctx.clearRect(0,0,W,H);
+  // grid
+  fctx.strokeStyle="rgba(255,255,255,.1)";
+  [0,-20,-40,-60,-80,-100].forEach(d=>{
+    const y=clamp((d-maxDb)/(minDb-maxDb),0,1)*H*0.88+H*0.06;
+    fctx.beginPath(); fctx.moveTo(0,y); fctx.lineTo(W,y); fctx.stroke();
+  });
+  [20,50,100,200,500,1000,2000,5000,10000].forEach(f=>{
+    if(f<fA||f>fB) return;
+    const x=logX(f,fA,fB,W);
+    fctx.beginPath(); fctx.moveTo(x,0); fctx.lineTo(x,H); fctx.stroke();
+  });
+  // spectrum
+  const N=analyser.fftSize;
+  fctx.fillStyle="rgba(180,200,255,.55)";
+  for(let i=1;i<data.length-1;i++){
+    const f=i*sr/N; if(f<fA||f>fB) continue;
+    const f2=(i+1)*sr/N;
+    const x0=logX(f,fA,fB,W), x1=logX(Math.min(f2,fB),fA,fB,W);
+    const w=Math.max(1,x1-x0);
+    const db=clamp(Number.isFinite(data[i])?data[i]:minDb,minDb,maxDb);
+    const h=((db-minDb)/(maxDb-minDb))*H*0.88;
+    fctx.fillRect(x0,H-H*0.06-h,w,h);
+  }
+  // markers
+  const vg=dbToGain(+volN.value);
+  for(let n=1;n<amps.length;n++){
+    const f=n*f0; if(f<fA||f>fB) continue;
+    const x=logX(f,fA,fB,W);
+    const db=clamp(ampToDb(Math.abs(amps[n])*vg,minDb),minDb,maxDb);
+    const h=((db-minDb)/(maxDb-minDb))*H*0.88;
+    fctx.strokeStyle=(n%2)?"#34d399":"#fb923c";
+    fctx.beginPath(); fctx.moveTo(x,H-H*0.06); fctx.lineTo(x,H-H*0.06-h); fctx.stroke();
+  }
+}
+
+(function anim(){
+  drawWave(); drawFFT();
+  requestAnimationFrame(anim);
+})();
+</script>
+</body>
+</html>

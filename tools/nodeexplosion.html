@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>フルメッシュ vs スター型 ネットワーク比較</title>
+  <style>
+    body { font-family: sans-serif; }
+    .container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    canvas { border: 1px solid #ccc; }
+    h3 { text-align: center; margin: 4px 0; }
+    .comment {
+      font-size: 13px;
+      background: #f8fafc;
+      border-left: 4px solid #94a3b8;
+      padding: 8px;
+      margin-top: 8px;
+    }
+    .controls {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      margin: 8px 0;
+      flex-wrap: wrap;
+    }
+    .badge {
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .on  { background:#fee2e2; color:#991b1b; }
+    .off { background:#e5e7eb; color:#374151; }
+    select { padding: 4px; }
+  </style>
+</head>
+<body>
+
+<h2>フルメッシュ vs スター型</h2>
+
+<div class="controls">
+  <label>
+    ノード数 n:
+    <input type="range" id="nSlider" min="2" max="20" value="5" />
+    <span id="nValue">5</span>
+  </label>
+  <label>
+    <input type="checkbox" id="faultToggle" />
+    障害を発生させる
+    <span id="faultBadge" class="badge off">OFF</span>
+  </label>
+  <label>
+    障害ノード:
+    <select id="faultNode"></select>
+  </label>
+</div>
+
+<p>
+  フルメッシュ: <strong id="meshLinks"></strong> links ｜ 
+  スター型: <strong id="starLinks"></strong> links
+</p>
+
+<div class="container">
+  <div>
+    <h3>フルメッシュ</h3>
+    <canvas id="meshCanvas" width="400" height="400"></canvas>
+    <div class="comment">
+      ・相互接続（n(n−1)/2）<br>
+      ・障害ON時：選択した<b>赤ノード</b>に接続するリンクのみ影響<br>
+      → 障害点は<b>分散</b>
+    </div>
+  </div>
+
+  <div>
+    <h3>スター型</h3>
+    <canvas id="starCanvas" width="400" height="400"></canvas>
+    <div class="comment">
+      ・中央集約（n−1）<br>
+      ・中央ノード障害：<b>全リンク影響（SPOF）</b><br>
+      ・端ノード障害：当該リンクのみ
+    </div>
+  </div>
+</div>
+
+<script>
+  const slider = document.getElementById('nSlider');
+  const nValue = document.getElementById('nValue');
+  const meshLinks = document.getElementById('meshLinks');
+  const starLinks = document.getElementById('starLinks');
+  const faultToggle = document.getElementById('faultToggle');
+  const faultBadge = document.getElementById('faultBadge');
+  const faultNodeSel = document.getElementById('faultNode');
+
+  const meshCtx = document.getElementById('meshCanvas').getContext('2d');
+  const starCtx = document.getElementById('starCanvas').getContext('2d');
+
+  function populateFaultNodes(n){
+    faultNodeSel.innerHTML = '';
+    for(let i = 0; i < n; i++){
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent =
+        i === 0 ? 'ノード1（※スターでは中央）' : `ノード${i + 1}`;
+      faultNodeSel.appendChild(opt);
+    }
+    faultNodeSel.value = '0';
+  }
+
+  function calcCircleNodes(n, w, h){
+    const cx = w / 2, cy = h / 2, r = 150;
+    return Array.from({ length: n }, (_, i) => {
+      const t = (2 * Math.PI * i) / n - Math.PI / 2;
+      return { x: cx + r * Math.cos(t), y: cy + r * Math.sin(t) };
+    });
+  }
+
+  function drawNodes(ctx, nodes, highlightIndex = -1){
+    nodes.forEach((node, i) => {
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, 10, 0, Math.PI * 2);
+      ctx.fillStyle = (i === highlightIndex) ? '#dc2626' : '#2563eb';
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(i + 1, node.x, node.y);
+    });
+  }
+
+  function drawFullMesh(n, faultOn, bad){
+    meshCtx.clearRect(0, 0, 400, 400);
+    const nodes = calcCircleNodes(n, 400, 400);
+    for(let i = 0; i < n; i++){
+      for(let j = i + 1; j < n; j++){
+        const affected = faultOn && (i === bad || j === bad);
+        meshCtx.strokeStyle = affected ? '#fca5a5' : '#94a3b8';
+        meshCtx.beginPath();
+        meshCtx.moveTo(nodes[i].x, nodes[i].y);
+        meshCtx.lineTo(nodes[j].x, nodes[j].y);
+        meshCtx.stroke();
+      }
+    }
+    drawNodes(meshCtx, nodes, faultOn ? bad : -1);
+  }
+
+  function drawStar(n, faultOn, bad){
+    starCtx.clearRect(0, 0, 400, 400);
+    const cx = 200, cy = 200, r = 150;
+    const nodes = Array.from({ length: n }, (_, i) => {
+      if(i === 0) return { x: cx, y: cy };
+      const t = (2 * Math.PI * (i - 1)) / (n - 1) - Math.PI / 2;
+      return { x: cx + r * Math.cos(t), y: cy + r * Math.sin(t) };
+    });
+    for(let i = 1; i < n; i++){
+      const affected = faultOn && (bad === 0 || bad === i);
+      starCtx.strokeStyle = affected ? '#fca5a5' : '#94a3b8';
+      starCtx.beginPath();
+      starCtx.moveTo(nodes[0].x, nodes[0].y);
+      starCtx.lineTo(nodes[i].x, nodes[i].y);
+      starCtx.stroke();
+    }
+    drawNodes(starCtx, nodes, faultOn ? bad : -1);
+  }
+
+  function update(){
+    const n = Number(slider.value);
+    const faultOn = faultToggle.checked;
+    const bad = Number(faultNodeSel.value);
+
+    nValue.textContent = n;
+    meshLinks.textContent = (n * (n - 1)) / 2;
+    starLinks.textContent = n - 1;
+
+    faultBadge.textContent = faultOn ? 'ON' : 'OFF';
+    faultBadge.className = 'badge ' + (faultOn ? 'on' : 'off');
+
+    drawFullMesh(n, faultOn, bad);
+    drawStar(n, faultOn, bad);
+  }
+
+  slider.addEventListener('input', () => {
+    populateFaultNodes(Number(slider.value));
+    update();
+  });
+  faultToggle.addEventListener('change', update);
+  faultNodeSel.addEventListener('change', update);
+
+  populateFaultNodes(Number(slider.value));
+  update();
+</script>
+
+</body>
+</html>
