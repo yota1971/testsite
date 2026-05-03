@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>遅延・位相差 計算ツール</title>
+<style>
+  :root {
+    --bg0:   #0e0f11;
+    --bg1:   #16181c;
+    --bg2:   #1e2128;
+    --bg3:   #262a33;
+    --bd:    #2e3340;
+    --tx0:   #e8eaf0;
+    --tx1:   #8b909e;
+    --tx2:   #555c6b;
+    --acc-a: #4d9fff;
+    --acc-b: #ff9500;
+    --acc-d: #b57cff;
+    --acc-g: #00c896;
+    --acc-r: #ff3355;
+    --warn:  #ffb300;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg0); color: var(--tx0); }
+  body { font-family: 'Courier New', monospace; padding: 30pt 30pt; min-height: 100vh; }
+
+  .header { margin-bottom: 1.6rem; }
+  .header h1 { font-size: 13px; font-weight: 500; letter-spacing: 0.12em; color: var(--tx1); text-transform: uppercase; margin-bottom: 5px; }
+  .header p  { font-size: 24px; font-weight: 600; color: var(--tx0); letter-spacing: -0.02em; }
+
+  .tab-bar { display: flex; margin-bottom: 1.4rem; border: 1px solid var(--bd); border-radius: 8px; overflow: hidden; width: fit-content; }
+  .tab { padding: 9px 22px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; color: var(--tx1); background: var(--bg2); border: none; font-family: 'Courier New', monospace; transition: background .15s, color .15s; }
+  .tab.active { background: var(--bg1); color: var(--tx0); font-weight: 600; }
+  .tab:not(:last-child) { border-right: 1px solid var(--bd); }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .inputs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 1.1rem; }
+  .input-card { background: var(--bg1); border: 1px solid var(--bd); border-radius: 10px; padding: 13px 15px; }
+  .input-card.ch-a { border-left: 3px solid var(--acc-a); }
+  .input-card.ch-b { border-left: 3px solid var(--acc-b); }
+  .input-card label { display: block; font-size: 12px; letter-spacing: 0.08em; color: var(--tx1); margin-bottom: 6px; text-transform: uppercase; }
+  .input-card .unit { font-size: 11px; color: var(--tx2); margin-left: 3px; }
+  .input-card input { width: 100%; font-size: 20px; font-weight: 600; font-family: 'Courier New', monospace; color: var(--tx0); background: transparent; border: none; outline: none; padding: 0; }
+  .input-card input::-webkit-inner-spin-button { opacity: 0; }
+  .sync-note { font-size: 11px; color: var(--tx2); margin-top: 4px; }
+
+  .shared-inputs { background: var(--bg2); border-radius: 10px; padding: 14px 16px; margin-bottom: 1.2rem; border: 1px solid var(--bd); }
+  .shared-label  { font-size: 12px; letter-spacing: 0.08em; color: var(--tx1); text-transform: uppercase; margin-bottom: 10px; }
+  .speed-detail  { font-size: 12px; color: var(--tx2); margin-top: 6px; line-height: 1.6; }
+
+  .results-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 1.4rem; }
+  .metric { background: var(--bg2); border-radius: 8px; padding: 12px 14px; border: 1px solid var(--bd); }
+  .metric .label { font-size: 11px; letter-spacing: 0.08em; color: var(--tx1); text-transform: uppercase; margin-bottom: 4px; }
+  .metric .value { font-size: 20px; font-weight: 600; font-family: 'Courier New', monospace; color: var(--tx0); }
+  .metric .sub   { font-size: 11px; color: var(--tx1); margin-top: 2px; }
+  .metric.highlight { border-color: #3a4055; }
+  .metric.ch-a  { border-left: 3px solid var(--acc-a); }
+  .metric.ch-b  { border-left: 3px solid var(--acc-b); }
+  .metric.diff  { border-left: 3px solid var(--acc-d); }
+
+  .section-label { font-size: 12px; letter-spacing: 0.08em; color: var(--tx1); text-transform: uppercase; margin-bottom: 9px; }
+
+  .table-wrap, .comb-table-wrap { background: var(--bg1); border: 1px solid var(--bd); border-radius: 10px; overflow: hidden; margin-bottom: 1.1rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; font-family: 'Courier New', monospace; }
+  th { font-size: 11px; letter-spacing: 0.05em; color: var(--tx1); text-transform: uppercase; padding: 9px 13px; text-align: right; border-bottom: 1px solid var(--bd); background: var(--bg2); font-weight: 500; }
+  th:first-child { text-align: left; }
+  td { padding: 7px 13px; text-align: right; color: var(--tx0); border-bottom: 1px solid var(--bd); }
+  td:first-child { text-align: left; color: var(--tx1); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg3); }
+  tr.row-nyq td:first-child { color: var(--warn); }
+  tr.row-fold td { background: rgba(255,51,85,.12); color: var(--acc-r); }
+  tr.row-fold td:first-child { color: var(--acc-r); font-weight: 600; }
+  tr.row-cancel td { background: rgba(181,124,255,.08); }
+  tr.row-cancel td.diff-val { color: var(--acc-d); font-weight: 600; }
+
+  .phase-bar-wrap { width: 72px; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; display: inline-block; vertical-align: middle; position: relative; }
+  .phase-bar { height: 100%; border-radius: 4px; position: absolute; top: 0; }
+
+  .tag { display: inline-block; font-size: 10px; letter-spacing: .04em; padding: 2px 6px; border-radius: 4px; vertical-align: middle; }
+  .tag-nyq    { background: rgba(255,179,0,.15); color: var(--warn); }
+  .tag-fold   { background: rgba(255,51,85,.18);  color: var(--acc-r); font-weight: 600; }
+  .tag-cancel { background: rgba(181,124,255,.15); color: var(--acc-d); }
+
+  .chart-wrap { background: var(--bg1); border: 1px solid var(--bd); border-radius: 10px; padding: 16px; margin-bottom: 1.4rem; }
+  .canvas-container { position: relative; width: 100%; height: 260px; }
+  .legend { display: flex; gap: 14px; margin-bottom: 12px; font-size: 12px; color: var(--tx1); flex-wrap: wrap; align-items: center; }
+  .legend-dot     { width: 11px; height: 11px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
+  .legend-diamond { width: 11px; height: 11px; display: inline-block; margin-right: 4px; vertical-align: middle; transform: rotate(45deg); border-radius: 1px; }
+
+  .warn { font-size: 12px; color: var(--tx2); margin-top: 7px; line-height: 1.7; }
+  .fold-info  { background: rgba(255,51,85,.07); border: 1px solid rgba(255,51,85,.28); border-radius: 8px; padding: 9px 14px; margin-bottom: 1.1rem; font-size: 13px; color: var(--tx0); }
+  .fold-info strong { color: var(--acc-r); font-weight: 600; }
+  .info-block { background: var(--bg2); border-left: 3px solid var(--bd); border-radius: 0 8px 8px 0; padding: 9px 13px; margin-bottom: 1.1rem; font-size: 13px; color: var(--tx1); line-height: 1.7; }
+
+  .export-row { display: flex; gap: 9px; margin-bottom: 1.4rem; flex-wrap: wrap; }
+  .btn { font-size: 13px; font-family: 'Courier New', monospace; letter-spacing: .06em; text-transform: uppercase; padding: 9px 18px; border-radius: 8px; border: 1px solid var(--bd); background: var(--bg2); color: var(--tx0); cursor: pointer; transition: background .15s; }
+  .btn:hover  { background: var(--bg3); }
+  .btn:active { transform: scale(.98); }
+
+  /* ── スライダー ── */
+  .slider-wrap { background: var(--bg2); border: 1px solid var(--bd); border-radius: 10px; padding: 14px 16px; margin-bottom: 1.2rem; }
+  .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .slider-val { font-size: 18px; font-weight: 600; font-family: 'Courier New', monospace; color: var(--acc-a); }
+  .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .slider-edge { font-size: 12px; color: var(--tx2); min-width: 32px; text-align: center; }
+  input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; background: var(--bg3); outline: none; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--acc-a); cursor: pointer; border: 2px solid var(--bg1); }
+  input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--acc-a); cursor: pointer; border: 2px solid var(--bg1); }
+  .slider-range-row { display: flex; gap: 20px; font-size: 13px; color: var(--tx1); align-items: center; }
+  .slider-range-row label { display: flex; align-items: center; gap: 6px; }
+  .slider-range-row input { background: var(--bg1); border: 1px solid var(--bd); border-radius: 6px; color: var(--tx0); padding: 4px 6px; font-family: 'Courier New', monospace; outline: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Sound / Acoustic</h1>
+  <p>遅延・位相差 計算ツール v7</p>
+</div>
+
+<div class="tab-bar">
+  <button class="tab active" onclick="switchTab('single')">単体モード</button>
+  <button class="tab" onclick="switchTab('compare')">2点比較モード</button>
+  <button class="tab" onclick="switchTab('comb')">コムフィルター</button>
+</div>
+
+<div class="shared-inputs">
+  <div class="shared-label">共通設定 — 音速パラメータ</div>
+  <div class="inputs-grid" style="margin-bottom:0;">
+    <div class="input-card"><label>気温<span class="unit">°C</span></label><input type="number" id="temp" value="20" step="0.5"></div>
+    <div class="input-card"><label>気圧<span class="unit">hPa</span></label><input type="number" id="pressure" value="1013.25" step="0.5"></div>
+    <div class="input-card"><label>相対湿度<span class="unit">%RH</span></label><input type="number" id="humidity" value="50" step="1" min="0" max="100"></div>
+    <div class="input-card"><label>サンプルレート<span class="unit">Hz</span></label><input type="number" id="samplerate" value="96000" step="100" min="1"></div>
+  </div>
+  <div class="speed-detail" id="speed-detail">音速: — m/s</div>
+  <div class="speed-detail">※ 音速は ISO 9613-1 に基づく実務向け近似モデルを使用しています。</div>
+</div>
+
+<!-- 単体モード -->
+<div id="panel-single" class="panel active">
+  <div class="inputs-grid">
+    <div class="input-card"><label>遅延時間<span class="unit">ms</span></label><input type="number" id="delay" value="10" step="0.01" min="0"><div class="sync-note">← サンプル数と連動</div></div>
+    <div class="input-card"><label>遅延サンプル数<span class="unit">samples</span></label><input type="number" id="samples-in" value="960" step="1" min="0"><div class="sync-note">← ms と連動</div></div>
+  </div>
+  <div class="results-row">
+    <div class="metric"><div class="label">音速</div><div class="value" id="res-speed">—</div><div class="sub">m/s</div></div>
+    <div class="metric"><div class="label">音換算距離</div><div class="value" id="res-dist">—</div><div class="sub">m</div></div>
+    <div class="metric highlight"><div class="label">正確サンプル数</div><div class="value" id="res-samples">—</div><div class="sub">samples (実数)</div></div>
+    <div class="metric"><div class="label">ナイキスト周波数</div><div class="value" id="res-nyq">—</div><div class="sub">kHz</div></div>
+    <div class="metric"><div class="label">折り返し周波数</div><div class="value" id="res-fold">—</div><div class="sub">Hz</div></div>
+  </div>
+  <div id="fold-banner" class="fold-info" style="display:none"></div>
+  <div class="info-block">
+    ±180° 正規化位相差は、周波数ごとの位相回転量を 1 周期内で評価したものです。±180° 付近では合成時の挙動が急変しやすくなります。<br>
+    折り返し近傍（±165°〜±180°）では EQ・フィルタ適用時に特性が不安定になりやすく、マルチウェイ合成では注意が必要です。
+  </div>
+  <div class="chart-wrap">
+    <div class="section-label">±180° 正規化位相差 vs 周波数（対数スケール）</div>
+    <div class="legend">
+      <span><span class="legend-dot" style="background:var(--acc-r);"></span>±180° 正規化位相差 (°)</span>
+      <span><span class="legend-dot" style="background:var(--acc-g);"></span>cycles</span>
+      <span><span class="legend-diamond" style="background:var(--acc-r);"></span>折り返し近傍 (±165°〜±180°)</span>
+    </div>
+    <div class="canvas-container"><canvas id="phaseChart"></canvas></div>
+  </div>
+  <div class="section-label">1/6オクターブ 位相差テーブル</div>
+  <div class="info-block">設計・調整でよく用いられる 1/6 オクターブ帯域ごとの位相回転量です。</div>
+  <div class="export-row"><button class="btn" onclick="exportCSV('single')">CSV エクスポート ↓</button></div>
+  <div class="table-wrap"><table><thead><tr><th>周波数</th><th>±180° 正規化 (°)</th><th>cycles</th><th style="min-width:84px">可視化</th><th>備考</th></tr></thead><tbody id="phase-table"></tbody></table></div>
+  <div class="warn">※ 折り返し近傍（±165°〜±180°）：グラフでダイヤ印・線切断、テーブルで赤強調。</div>
+</div>
+
+<!-- 2点比較モード -->
+<div id="panel-compare" class="panel">
+  <div class="info-block">2点の遅延差が、周波数ごとにどの程度の位相差を生むかを比較します。メイン／ディレイ、L/R、フィル＋メインの検討に使用します。</div>
+  <div class="inputs-grid">
+    <div class="input-card ch-a"><label>遅延 A<span class="unit">ms</span></label><input type="number" id="delay-a" value="10" step="0.01" min="0"><div class="sync-note">← サンプル数と連動</div></div>
+    <div class="input-card ch-a"><label>サンプル A<span class="unit">samples</span></label><input type="number" id="samples-a" value="960" step="1" min="0"><div class="sync-note">← ms と連動</div></div>
+    <div class="input-card ch-b"><label>遅延 B<span class="unit">ms</span></label><input type="number" id="delay-b" value="5" step="0.01" min="0"><div class="sync-note">← サンプル数と連動</div></div>
+    <div class="input-card ch-b"><label>サンプル B<span class="unit">samples</span></label><input type="number" id="samples-b" value="480" step="1" min="0"><div class="sync-note">← ms と連動</div></div>
+  </div>
+  <div class="results-row">
+    <div class="metric ch-a"><div class="label">距離 A</div><div class="value" id="cmp-dist-a">—</div><div class="sub">m</div></div>
+    <div class="metric ch-a"><div class="label">サンプル A</div><div class="value" id="cmp-smp-a">—</div><div class="sub">samples</div></div>
+    <div class="metric ch-b"><div class="label">距離 B</div><div class="value" id="cmp-dist-b">—</div><div class="sub">m</div></div>
+    <div class="metric ch-b"><div class="label">サンプル B</div><div class="value" id="cmp-smp-b">—</div><div class="sub">samples</div></div>
+    <div class="metric diff"><div class="label">差分 (A−B)</div><div class="value" id="cmp-diff-ms">—</div><div class="sub">ms</div></div>
+    <div class="metric diff"><div class="label">差分距離</div><div class="value" id="cmp-diff-dist">—</div><div class="sub">m</div></div>
+  </div>
+  <div class="chart-wrap">
+    <div class="section-label">位相差比較（対数スケール） A: 青 / B: 橙 / A−B: 紫</div>
+    <div class="legend">
+      <span><span class="legend-dot" style="background:var(--acc-a);"></span>A (°)</span>
+      <span><span class="legend-dot" style="background:var(--acc-b);"></span>B (°)</span>
+      <span><span class="legend-dot" style="background:var(--acc-d);"></span>A−B 相対 (°)</span>
+      <span><span class="legend-diamond" style="background:var(--acc-d);"></span>A−B 折り返し近傍</span>
+    </div>
+    <div class="info-block">逆相近傍（±165°〜±180°）では、合成時に音が打ち消されやすく、音量低下や定位の不安定化が起こりやすくなります。</div>
+    <div class="canvas-container"><canvas id="compareChart"></canvas></div>
+  </div>
+  <div class="section-label">1/6オクターブ 比較テーブル</div>
+  <div class="export-row"><button class="btn" onclick="exportCSV('compare')">CSV エクスポート ↓</button></div>
+  <div class="table-wrap"><table><thead><tr><th>周波数</th><th>A (°)</th><th>B (°)</th><th>A−B (°)</th><th style="min-width:84px">A−B 可視化</th><th>備考</th></tr></thead><tbody id="compare-table"></tbody></table></div>
+  <div class="warn">※ A−B 相対位相差が ±165°〜±180° の帯域は紫強調（逆相キャンセル近傍）。</div>
+</div>
+
+<!-- コムフィルター -->
+<div id="panel-comb" class="panel">
+  <div class="info-block">コムフィルターは、同一信号に遅延が加わって重なることで発生します。遅延時間が決まると、キャンセルとブーストの周波数は機械的に決まります。</div>
+  <div class="inputs-grid">
+    <div class="input-card"><label>遅延時間<span class="unit">ms</span></label><input type="number" id="comb-delay" value="10" step="0.01" min="0.001"><div class="sync-note">← サンプル数と連動</div></div>
+    <div class="input-card"><label>遅延サンプル数<span class="unit">samples</span></label><input type="number" id="comb-samples" value="960" step="1" min="1"><div class="sync-note">← ms と連動</div></div>
+  </div>
+
+  <div class="slider-wrap">
+    <div class="slider-header">
+      <span class="section-label" style="margin-bottom:0;">遅延時間スライダー</span>
+      <span class="slider-val" id="comb-slider-val">10.00 ms</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-edge" id="comb-slider-min-label">0.1</span>
+      <input type="range" id="comb-slider" min="0.1" max="50" step="0.01" value="10" style="flex:1;">
+      <span class="slider-edge" id="comb-slider-max-label">50</span>
+    </div>
+    <div class="slider-range-row">
+      <label>範囲 min<span class="unit"> ms</span> <input type="number" id="comb-slider-min" value="0.1" step="0.1" min="0.01" style="width:72px;font-size:14px;"></label>
+      <label>max<span class="unit"> ms</span> <input type="number" id="comb-slider-max" value="50" step="1" min="0.1" style="width:72px;font-size:14px;"></label>
+    </div>
+  </div>
+
+  <div class="results-row">
+    <div class="metric"><div class="label">基本周期</div><div class="value" id="comb-period">—</div><div class="sub">ms</div></div>
+    <div class="metric"><div class="label">基本周波数 f₀</div><div class="value" id="comb-f0">—</div><div class="sub">Hz</div></div>
+    <div class="metric"><div class="label">最初の同相 (+3dB)</div><div class="value" id="comb-first-boost">—</div><div class="sub">Hz</div></div>
+    <div class="metric"><div class="label">最初の逆相 (−∞dB)</div><div class="value" id="comb-first-cancel">—</div><div class="sub">Hz</div></div>
+  </div>
+
+  <div class="chart-wrap">
+    <div class="section-label">振幅特性・位相特性（対数周波数スケール）</div>
+    <div class="legend">
+      <span><span class="legend-dot" style="background:#4d9fff;"></span>振幅 (dB)</span>
+      <span><span class="legend-dot" style="background:#ff3355; opacity:.7;"></span>±180° 正規化位相差 (°)</span>
+      <span style="color:var(--tx2); font-size:11px;">振幅: 左軸　位相: 右軸</span>
+    </div>
+    <div class="canvas-container" style="height:280px;"><canvas id="combChart"></canvas></div>
+  </div>
+
+  <div class="export-row"><button class="btn" onclick="exportCSV('comb')">CSV エクスポート ↓</button></div>
+  <div class="section-label">コムフィルター周波数一覧（ナイキスト以下）</div>
+  <div class="comb-table-wrap"><table><thead><tr><th>次数 n</th><th>逆相・キャンセル (Hz)</th><th>同相・ブースト (Hz)</th></tr></thead><tbody id="comb-table"></tbody></table></div>
+  <div class="warn">※ 逆相キャンセル: f = (2n−1)/(2T)、同相ブースト: f = n/T　(T = 遅延秒、n = 1,2,3...)<br>
+  ※ 振幅特性: 遅れた信号と原信号の等量加算を仮定。実際の増減はレベル差・極性設定に依存します。</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const SIXTH_OCT_FREQS = (() => {
+  const a = [];
+  for (let i = -24; i <= 24; i++) { const f = 1000*Math.pow(2,i/6); if(f>=20&&f<=24000) a.push(f); }
+  return a;
+})();
+
+function formatFreq(f) {
+  if(f>=10000) return (f/1000).toFixed(1)+'k';
+  if(f>=1000)  return (f/1000).toFixed(2).replace(/\.?0+$/,'')+'k';
+  return Math.round(f)+'';
+}
+
+function calcSpeed(t, p, h) {
+  const Psat = 6.1078 * Math.exp(17.27*t/(t+237.3));
+  const Pv   = (h/100) * Psat;
+  return 331.3 * Math.sqrt(1+t/273.15) + 0.0124*Pv;
+}
+
+function normDeg(cycles) {
+  let d = (cycles%1)*360;
+  d = ((d%360)+360)%360;
+  if(d>180) d-=360;
+  return d;
+}
+
+function logX() {
+  return {
+    type:'logarithmic',
+    ticks:{ maxRotation:0, color:'#555c6b', font:{size:12,family:'Courier New'},
+      callback: v => {
+        const nice=[20,31.5,63,125,250,500,1000,2000,4000,8000,16000,20000];
+        return nice.includes(Math.round(v)) ? formatFreq(v)+'Hz' : '';
+      }
+    },
+    grid:{ color:'rgba(255,255,255,0.05)' }
+  };
+}
+function yAxis(label,color){
+  return {
+    title:{display:true,text:label,font:{size:12},color:color||'#555c6b'},
+    ticks:{font:{size:12,family:'Courier New'},color:'#555c6b'},
+    grid:{color:'rgba(255,255,255,0.05)'}
+  };
+}
+
+let chartSingle, chartCompare;
+let updSingle=false, updA=false, updB=false, updComb=false;
+
+const G = id => document.getElementById(id);
+const getSpeed = () => calcSpeed(+G('temp').value||20, +G('pressure').value||1013.25, +G('humidity').value||50);
+
+function updateSpeedDetail(){
+  const spd=getSpeed(), t=+G('temp').value||20, h=+G('humidity').value||50;
+  const Psat=6.1078*Math.exp(17.27*t/(t+237.3)), Pv=(h/100)*Psat;
+  G('speed-detail').textContent=`音速: ${spd.toFixed(3)} m/s　飽和水蒸気圧: ${Psat.toFixed(2)} hPa　水蒸気分圧: ${Pv.toFixed(2)} hPa`;
+}
+
+// ms → サンプル数フィールドを整数丸め＋符号付きで返すヘルパー
+function msToSamplesDisplay(ms, sr) {
+  const exact = ms / 1000 * sr;
+  const rounded = Math.round(exact);
+  const diff = exact - rounded;
+  return String(rounded) + (Math.abs(diff) < 1e-9 ? '' : diff > 0 ? '+' : '-');
+}
+
+function switchTab(n){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['single','compare','comb'][i]===n));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  G('panel-'+n).classList.add('active');
+}
+
+// ---- SINGLE ----
+function syncMs(){
+  if(updSingle)return; updSingle=true;
+  const sr=+G('samplerate').value||96000;
+  G('samples-in').value=msToSamplesDisplay(+G('delay').value||0, sr);
+  updSingle=false; updateSingle();
+}
+function syncSmp(){ if(updSingle)return; updSingle=true; const sr=+G('samplerate').value||96000; G('delay').value=((+G('samples-in').value||0)/sr*1000).toFixed(6); updSingle=false; updateSingle(); }
+
+function updateSingle(){
+  const ms=+G('delay').value||0, sr=+G('samplerate').value||96000;
+  const speed=getSpeed(), delayS=ms/1000, nyq=sr/2;
+  const foldFreq=delayS>0?1/delayS/2:Infinity;
+
+  G('res-speed').textContent   = speed.toFixed(3);
+  G('res-dist').textContent    = (speed*delayS).toFixed(4);
+  G('res-samples').textContent = (delayS*sr).toFixed(4);
+  G('res-nyq').textContent     = (nyq/1000).toFixed(1);
+  G('res-fold').textContent    = isFinite(foldFreq)?foldFreq.toFixed(1):'∞';
+
+  const banner=G('fold-banner');
+  if(isFinite(foldFreq)&&foldFreq<nyq){ banner.style.display=''; banner.innerHTML=`<strong>折り返し周波数: ${foldFreq.toFixed(1)} Hz</strong>　1 / (2 × ${delayS.toFixed(6)} s)`; }
+  else banner.style.display='none';
+
+  const freqs    = SIXTH_OCT_FREQS.filter(f=>f<=nyq);
+  const cyclesArr = freqs.map(f=>f*delayS);
+  const normDegs  = cyclesArr.map(c=>normDeg(c));
+  const isFold    = normDegs.map(d=>Math.abs(d)>=165);
+
+  // テーブル
+  const tbody=G('phase-table'); tbody.innerHTML='';
+  freqs.forEach((f,i)=>{
+    const norm=normDegs[i], cyc=cyclesArr[i], isNyq=f>nyq*0.95;
+    const bp=(Math.abs(norm)/180*100).toFixed(1), bc=norm>=0?'var(--acc-a)':'var(--acc-r)';
+    const tr=document.createElement('tr');
+    if(isFold[i]) tr.className='row-fold'; else if(isNyq) tr.className='row-nyq';
+    tr.innerHTML=`<td>${formatFreq(f)} Hz</td><td>${norm.toFixed(1)}</td><td>${cyc.toFixed(3)}</td>
+      <td><div class="phase-bar-wrap"><div class="phase-bar" style="width:${bp}%;background:${bc};${norm>=0?'left:0':'right:0'};"></div></div></td>
+      <td>${isFold[i]?'<span class="tag tag-fold">折り返し近傍</span>':(isNyq?'<span class="tag tag-nyq">Nyq近傍</span>':'')}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // チャート
+  const rawPhase  = freqs.map((f,i)=>({x:f,y:parseFloat(normDegs[i].toFixed(2))}));
+  const rawCycles = freqs.map((f,i)=>({x:f,y:parseFloat(cyclesArr[i].toFixed(4))}));
+  const maxCyc    = Math.max(...cyclesArr,1);
+  const pRadii=rawPhase.map((_,i)=>isFold[i]?9:2);
+  const pStyles=rawPhase.map((_,i)=>isFold[i]?'rectRot':'circle');
+  const pBg=rawPhase.map((_,i)=>isFold[i]?'#ff3355':'rgba(255,51,85,.75)');
+
+  if(chartSingle){
+    chartSingle.data.datasets[0].data=rawPhase;
+    chartSingle.data.datasets[0].pointRadius=pRadii;
+    chartSingle.data.datasets[0].pointStyle=pStyles;
+    chartSingle.data.datasets[0].pointBackgroundColor=pBg;
+    chartSingle.data.datasets[1].data=rawCycles;
+    chartSingle.options.scales.y1.max=maxCyc*1.15;
+    chartSingle.update('none');
+  } else {
+    chartSingle=new Chart(G('phaseChart').getContext('2d'),{
+      type:'line', data:{datasets:[
+        {label:'±180°',data:rawPhase,borderColor:'#ff3355',backgroundColor:'rgba(255,51,85,.06)',
+         borderWidth:2,pointRadius:pRadii,pointStyle:pStyles,pointBackgroundColor:pBg,
+         yAxisID:'y',tension:0,showLine:true},
+        {label:'cycles',data:rawCycles,borderColor:'#00c896',backgroundColor:'rgba(0,200,150,.05)',
+         borderWidth:1.5,pointRadius:2,pointBackgroundColor:'#00c896',
+         yAxisID:'y1',tension:0,showLine:true,borderDash:[5,3]}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{mode:'nearest',intersect:false,callbacks:{title:i=>formatFreq(i[0].parsed.x)+'Hz'}}},
+        scales:{
+          x:{...logX()},
+          y:{...yAxis('位相差 (°)'),min:-180,max:180},
+          y1:{position:'right',...yAxis('cycles','#00c896'),grid:{drawOnChartArea:false},min:0,max:maxCyc*1.15}
+        }
+      }
+    });
+  }
+}
+
+// ---- COMPARE ----
+function syncA_ms(){
+  if(updA)return; updA=true;
+  const sr=+G('samplerate').value||96000;
+  G('samples-a').value=msToSamplesDisplay(+G('delay-a').value||0, sr);
+  updA=false; updateCompare();
+}
+function syncA_smp(){ if(updA)return; updA=true; const sr=+G('samplerate').value||96000; G('delay-a').value=((+G('samples-a').value||0)/sr*1000).toFixed(6); updA=false; updateCompare(); }
+function syncB_ms(){
+  if(updB)return; updB=true;
+  const sr=+G('samplerate').value||96000;
+  G('samples-b').value=msToSamplesDisplay(+G('delay-b').value||0, sr);
+  updB=false; updateCompare();
+}
+function syncB_smp(){ if(updB)return; updB=true; const sr=+G('samplerate').value||96000; G('delay-b').value=((+G('samples-b').value||0)/sr*1000).toFixed(6); updB=false; updateCompare(); }
+
+function updateCompare(){
+  const msA=+G('delay-a').value||0, msB=+G('delay-b').value||0;
+  const sr=+G('samplerate').value||96000, speed=getSpeed();
+  const sA=msA/1000, sB=msB/1000, nyq=sr/2, diffS=sA-sB;
+
+  G('cmp-dist-a').textContent   = (speed*sA).toFixed(4);
+  G('cmp-smp-a').textContent    = (sA*sr).toFixed(2);
+  G('cmp-dist-b').textContent   = (speed*sB).toFixed(4);
+  G('cmp-smp-b').textContent    = (sB*sr).toFixed(2);
+  G('cmp-diff-ms').textContent   = (msA-msB).toFixed(4);
+  G('cmp-diff-dist').textContent = (speed*Math.abs(diffS)).toFixed(4);
+
+  const freqs   = SIXTH_OCT_FREQS.filter(f=>f<=nyq);
+  const normA   = freqs.map(f=>normDeg(f*sA));
+  const normB   = freqs.map(f=>normDeg(f*sB));
+  const normDiff= freqs.map(f=>normDeg(f*diffS));
+  const isDiff  = normDiff.map(d=>Math.abs(d)>=165);
+
+  const tbody=G('compare-table'); tbody.innerHTML='';
+  freqs.forEach((f,i)=>{
+    const nd=normDiff[i], bp=(Math.abs(nd)/180*100).toFixed(1);
+    const tr=document.createElement('tr');
+    if(isDiff[i]) tr.className='row-cancel';
+    tr.innerHTML=`<td>${formatFreq(f)} Hz</td><td>${normA[i].toFixed(1)}</td><td>${normB[i].toFixed(1)}</td>
+      <td class="diff-val">${nd.toFixed(1)}</td>
+      <td><div class="phase-bar-wrap"><div class="phase-bar" style="width:${bp}%;background:var(--acc-d);${nd>=0?'left:0':'right:0'};"></div></div></td>
+      <td>${isDiff[i]?'<span class="tag tag-cancel">逆相近傍</span>':''}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const rawA=freqs.map((f,i)=>({x:f,y:parseFloat(normA[i].toFixed(2))}));
+  const rawB=freqs.map((f,i)=>({x:f,y:parseFloat(normB[i].toFixed(2))}));
+  const rawD=freqs.map((f,i)=>({x:f,y:parseFloat(normDiff[i].toFixed(2))}));
+  const pRadD=rawD.map((_,i)=>isDiff[i]?9:2);
+  const pStyD=rawD.map((_,i)=>isDiff[i]?'rectRot':'circle');
+
+  if(chartCompare){
+    chartCompare.data.datasets[0].data=rawA;
+    chartCompare.data.datasets[1].data=rawB;
+    chartCompare.data.datasets[2].data=rawD;
+    chartCompare.data.datasets[2].pointRadius=pRadD;
+    chartCompare.data.datasets[2].pointStyle=pStyD;
+    chartCompare.update('none');
+  } else {
+    chartCompare=new Chart(G('compareChart').getContext('2d'),{
+      type:'line', data:{datasets:[
+        {label:'A',data:rawA,borderColor:'#4d9fff',backgroundColor:'rgba(77,159,255,.05)',borderWidth:1.5,pointRadius:2,pointBackgroundColor:'#4d9fff',tension:0,showLine:true},
+        {label:'B',data:rawB,borderColor:'#ff9500',backgroundColor:'rgba(255,149,0,.05)',borderWidth:1.5,pointRadius:2,pointBackgroundColor:'#ff9500',tension:0,showLine:true},
+        {label:'A−B',data:rawD,borderColor:'#b57cff',backgroundColor:'rgba(181,124,255,.07)',borderWidth:2,pointRadius:pRadD,pointStyle:pStyD,pointBackgroundColor:'#b57cff',tension:0,showLine:true}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{mode:'nearest',intersect:false,callbacks:{title:i=>formatFreq(i[0].parsed.x)+'Hz'}}},
+        scales:{x:{...logX()},y:{...yAxis('位相差 (°)'),min:-180,max:180}}
+      }
+    });
+  }
+}
+
+// ---- COMB ----
+function syncCombMs()  { if(updComb)return; updComb=true; const sr=+G('samplerate').value||96000; G('comb-samples').value=((+G('comb-delay').value||0)/1000*sr).toFixed(4); updComb=false; updateComb(); }
+function syncCombSmp() { if(updComb)return; updComb=true; const sr=+G('samplerate').value||96000; G('comb-delay').value=((+G('comb-samples').value||0)/sr*1000).toFixed(6); updComb=false; updateComb(); }
+
+// スライダー → comb-delay へ同期
+function syncCombSlider(){
+  const v=parseFloat(G('comb-slider').value);
+  G('comb-slider-val').textContent=v.toFixed(2)+' ms';
+  if(updComb)return; updComb=true;
+  G('comb-delay').value=v.toFixed(4);
+  const sr=+G('samplerate').value||96000;
+  G('comb-samples').value=(v/1000*sr).toFixed(4);
+  updComb=false; updateComb();
+}
+
+// スライダーの min/max 範囲を更新
+function updateSliderRange(){
+  const mn=+G('comb-slider-min').value||0.1;
+  const mx=+G('comb-slider-max').value||50;
+  const sl=G('comb-slider');
+  sl.min=mn; sl.max=mx;
+  G('comb-slider-min-label').textContent=mn;
+  G('comb-slider-max-label').textContent=mx;
+  // 現在値がはみ出す場合はクランプ
+  const cur=parseFloat(sl.value);
+  if(cur<mn){ sl.value=mn; syncCombSlider(); }
+  else if(cur>mx){ sl.value=mx; syncCombSlider(); }
+}
+
+let chartComb;
+
+function updateComb(){
+  const ms=+G('comb-delay').value||0.001, sr=+G('samplerate').value||96000;
+  const T=ms/1000, nyq=sr/2, f0=1/T;
+  G('comb-period').textContent       = ms.toFixed(4);
+  G('comb-f0').textContent           = f0.toFixed(2);
+  G('comb-first-boost').textContent  = f0.toFixed(2);
+  G('comb-first-cancel').textContent = (f0/2).toFixed(2);
+
+  // スライダーを comb-delay に追従（スライダー側から呼ばれた場合は不要だが冪等）
+  const sl=G('comb-slider');
+  const clampedMs=Math.min(Math.max(ms,+sl.min),+sl.max);
+  sl.value=clampedMs;
+  G('comb-slider-val').textContent=ms.toFixed(2)+' ms';
+
+  // テーブル
+  const tbody=G('comb-table'); tbody.innerHTML='';
+  for(let n=1;;n++){
+    const cancel=(2*n-1)/(2*T), boost=n/T;
+    if(cancel>nyq&&boost>nyq) break;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${n}</td><td>${cancel<=nyq?cancel.toFixed(2)+' Hz':'—'}</td><td>${boost<=nyq?boost.toFixed(2)+' Hz':'—'}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  // グラフ用データ生成（200点、対数均等）
+  const N=300;
+  const fMin=20, fMax=Math.min(nyq,20000);
+  const pts=[];
+  for(let i=0;i<N;i++){
+    const f=fMin*Math.pow(fMax/fMin, i/(N-1));
+    // 振幅: |1 + e^{-j2πfT}| = 2|cos(πfT)|  → dB
+    const phaseRad = Math.PI * f * T;
+    const amp = 2 * Math.abs(Math.cos(phaseRad));
+    // −∞ を −60dB でクリップ
+    const dB = amp < 1e-6 ? -60 : 20*Math.log10(amp);
+    // 位相差（±180°正規化）: 遅延T秒の信号との位相差
+    const cycles = f * T;
+    const phaseDeg = normDeg(cycles);
+    pts.push({f, dB: Math.max(dB,-60), phaseDeg});
+  }
+
+  const ampData   = pts.map(p=>({x:p.f, y:parseFloat(p.dB.toFixed(2))}));
+  const phaseData = pts.map(p=>({x:p.f, y:parseFloat(p.phaseDeg.toFixed(2))}));
+
+  if(chartComb){
+    chartComb.data.datasets[0].data=ampData;
+    chartComb.data.datasets[1].data=phaseData;
+    chartComb.update('none');
+  } else {
+    chartComb=new Chart(G('combChart').getContext('2d'),{
+      type:'line',
+      data:{datasets:[
+        {label:'振幅 (dB)', data:ampData,
+         borderColor:'#4d9fff', backgroundColor:'rgba(77,159,255,0.08)',
+         borderWidth:2, pointRadius:0, yAxisID:'yAmp', tension:0, showLine:true, fill:true},
+        {label:'位相差 (°)', data:phaseData,
+         borderColor:'rgba(255,51,85,0.75)', backgroundColor:'transparent',
+         borderWidth:1.5, pointRadius:0, yAxisID:'yPhase', tension:0, showLine:true,
+         borderDash:[4,3]}
+      ]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        animation:{duration:120},
+        plugins:{
+          legend:{display:false},
+          tooltip:{mode:'nearest', intersect:false,
+            callbacks:{
+              title: items => formatFreq(items[0].parsed.x)+'Hz',
+              label: item => item.datasetIndex===0
+                ? `振幅: ${item.parsed.y.toFixed(1)} dB`
+                : `位相差: ${item.parsed.y.toFixed(1)} °`
+            }
+          }
+        },
+        scales:{
+          x:{...logX()},
+          yAmp:{
+            title:{display:true, text:'振幅 (dB)', font:{size:12}, color:'#4d9fff'},
+            ticks:{font:{size:11, family:'Courier New'}, color:'#555c6b',
+              callback: v => v===0?'0 dB': v===6?'+6 dB': v===-60?'−60':v%10===0?v+'':''
+            },
+            grid:{color:'rgba(255,255,255,0.05)'},
+            min:-66, max:8,
+            // 0dB ラインを強調
+            afterDataLimits: scale => { scale.min=-66; scale.max=8; }
+          },
+          yPhase:{
+            position:'right',
+            title:{display:true, text:'位相差 (°)', font:{size:12}, color:'rgba(255,51,85,0.8)'},
+            ticks:{font:{size:11, family:'Courier New'}, color:'#555c6b'},
+            grid:{drawOnChartArea:false},
+            min:-180, max:180
+          }
+        }
+      }
+    });
+  }
+}
+
+// ---- CSV ----
+function exportCSV(mode){
+  const sr=+G('samplerate').value||96000, nyq=sr/2;
+  const freqs=SIXTH_OCT_FREQS.filter(f=>f<=nyq);
+  let rows=[], filename='';
+  if(mode==='single'){
+    const ms=+G('delay').value||0, dS=ms/1000;
+    rows.push(['周波数(Hz)','±180°正規化(°)','cycles','折り返し近傍']);
+    freqs.forEach(f=>{ const c=f*dS,n=normDeg(c); rows.push([f.toFixed(2),n.toFixed(2),c.toFixed(4),Math.abs(n)>=165?'1':'0']); });
+    filename=`phase_single_${ms}ms.csv`;
+  } else if(mode==='compare'){
+    const msA=+G('delay-a').value||0, msB=+G('delay-b').value||0, sA=msA/1000, sB=msB/1000;
+    rows.push(['周波数(Hz)','A_±180°(°)','B_±180°(°)','A-B_±180°(°)','逆相近傍']);
+    freqs.forEach(f=>{ const na=normDeg(f*sA),nb=normDeg(f*sB),nd=normDeg(f*(sA-sB)); rows.push([f.toFixed(2),na.toFixed(2),nb.toFixed(2),nd.toFixed(2),Math.abs(nd)>=165?'1':'0']); });
+    filename=`phase_compare_A${msA}ms_B${msB}ms.csv`;
+  } else if(mode==='comb'){
+    const ms=+G('comb-delay').value||0.001, T=ms/1000;
+    rows.push(['次数n','逆相キャンセル(Hz)','同相ブースト(Hz)']);
+    for(let n=1;;n++){ const c=(2*n-1)/(2*T),b=n/T; if(c>nyq&&b>nyq)break; rows.push([n,c<=nyq?c.toFixed(2):'',b<=nyq?b.toFixed(2):'']); }
+    filename=`comb_filter_${ms}ms.csv`;
+  }
+  const csv='\uFEFF'+rows.map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=filename; a.click();
+}
+
+// ---- BINDINGS ----
+G('delay').addEventListener('input',syncMs);
+G('samples-in').addEventListener('input',syncSmp);
+G('delay-a').addEventListener('input',syncA_ms);
+G('samples-a').addEventListener('input',syncA_smp);
+G('delay-b').addEventListener('input',syncB_ms);
+G('samples-b').addEventListener('input',syncB_smp);
+G('comb-delay').addEventListener('input',syncCombMs);
+G('comb-samples').addEventListener('input',syncCombSmp);
+G('comb-slider').addEventListener('input',syncCombSlider);
+G('comb-slider-min').addEventListener('change',updateSliderRange);
+G('comb-slider-max').addEventListener('change',updateSliderRange);
+
+
+['temp','pressure','humidity','samplerate'].forEach(id=>{
+  G(id).addEventListener('input',()=>{
+    const sr=+G('samplerate').value||96000;
+    updSingle=true; G('samples-in').value=msToSamplesDisplay(+G('delay').value||0, sr); updSingle=false;
+    updA=true;      G('samples-a').value=msToSamplesDisplay(+G('delay-a').value||0, sr); updA=false;
+    updB=true;      G('samples-b').value=msToSamplesDisplay(+G('delay-b').value||0, sr); updB=false;
+    updComb=true;   G('comb-samples').value=((+G('comb-delay').value||0)/1000*sr).toFixed(4); updComb=false;
+    updateSpeedDetail(); updateSingle(); updateCompare(); updateComb();
+  });
+});
+
+// 初期表示（ms→samples の整数丸め表示を揃える）
+const _sr0=+G('samplerate').value||96000;
+G('samples-in').value=msToSamplesDisplay(+G('delay').value||0,   _sr0);
+G('samples-a').value =msToSamplesDisplay(+G('delay-a').value||0, _sr0);
+G('samples-b').value =msToSamplesDisplay(+G('delay-b').value||0, _sr0);
+
+updateSpeedDetail(); updateSingle(); updateCompare(); updateComb();
+</script>
+</body>
+</html>

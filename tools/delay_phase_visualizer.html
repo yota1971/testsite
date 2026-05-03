@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>遅延・位相・FFT ビジュアライザ</title>
+  <style>
+    /* ============================================================
+       Design Tokens
+       ============================================================ */
+    :root {
+      --bg:         #0e0e10;
+      --surface:    #18181c;
+      --border:     #2a2a30;
+      --text:       #d4d4d8;
+      --text-dim:   #52525b;
+      --text-label: #a1a1aa;
+      --accent-dry: #22d3ee;   /* cyan  – Dry */
+      --accent-wet: #e879f9;   /* pink  – Wet */
+      --accent-mix: #facc15;   /* amber – Mix */
+      --accent-ok:  #4ade80;   /* green – FFT line */
+      --accent-peak:#facc15;
+      --grid:       #1f1f26;
+      --font:       'Segoe UI', system-ui, sans-serif;
+      --mono:       'Consolas', 'Cascadia Code', monospace;
+      --radius:     6px;
+      --transition: 0.15s ease;
+    }
+
+    /* ============================================================
+       Reset / Base
+       ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    /* ============================================================
+       Header
+       ============================================================ */
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+    }
+    header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--text);
+    }
+    header .subtitle {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    /* ============================================================
+       Layout: Controls + Info
+       ============================================================ */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 16px;
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: auto 1fr 72px 140px;
+      align-items: center;
+      gap: 8px 12px;
+    }
+
+    .ctrl-label {
+      font-size: 11px;
+      color: var(--text-label);
+      white-space: nowrap;
+      font-family: var(--mono);
+    }
+
+    /* Range slider */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      outline: none;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--text);
+      border: 2px solid var(--bg);
+      box-shadow: 0 0 0 1px var(--border);
+      transition: transform var(--transition);
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+    /* Number input */
+    input[type="number"] {
+      width: 68px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 3px 6px;
+      outline: none;
+      transition: border-color var(--transition);
+    }
+    input[type="number"]:focus { border-color: var(--accent-ok); }
+    input[type="number"]::-webkit-inner-spin-button { opacity: 0.4; }
+
+    /* Value badge */
+    .val-badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-label);
+      padding: 2px 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      text-align: right;
+      min-width: 130px;
+    }
+
+    /* Checkbox row */
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      color: var(--text-label);
+      font-size: 12px;
+    }
+    input[type="checkbox"] {
+      accent-color: var(--accent-ok);
+      width: 14px; height: 14px;
+      cursor: pointer;
+    }
+
+    /* Transport buttons */
+    .transport {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    button {
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 18px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all var(--transition);
+      letter-spacing: 0.04em;
+    }
+    #btnStart {
+      background: var(--accent-ok);
+      color: #000;
+      border-color: transparent;
+    }
+    #btnStart:hover:not(:disabled)  { filter: brightness(1.15); }
+    #btnStart:disabled               { opacity: 0.35; cursor: default; }
+
+    #btnStop {
+      background: transparent;
+      color: var(--text);
+    }
+    #btnStop:hover:not(:disabled)   { background: var(--border); }
+    #btnStop:disabled                { opacity: 0.35; cursor: default; }
+
+    .transport-hint {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    /* ============================================================
+       Info bar
+       ============================================================ */
+    .info-bar {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .info-key {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .info-val {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* ============================================================
+       Canvas panels
+       ============================================================ */
+    .canvas-section {
+      margin-bottom: 16px;
+    }
+    .canvas-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .canvas-title {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .legend {
+      display: flex;
+      gap: 14px;
+      margin-left: auto;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+    .legend-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>遅延・位相・FFT ビジュアライザ</h1>
+  <span class="subtitle">Delay / Phase / FFT</span>
+</header>
+
+<!-- Controls -->
+<div class="panel">
+  <div class="controls-grid">
+    <span class="ctrl-label">周波数</span>
+    <input type="range" id="slFreq" min="20" max="5000" value="440">
+    <input type="number"  id="nmFreq" min="20" max="5000" value="440">
+    <span class="val-badge" id="badgeFreq">440.0 Hz</span>
+
+    <span class="ctrl-label">遅延時間</span>
+    <input type="range" id="slDelay" min="0" max="20" step="0.01" value="0">
+    <input type="number"  id="nmDelay" min="0" max="20" step="0.01" value="0">
+    <span class="val-badge" id="badgeDelay">0.00 ms</span>
+
+    <span class="ctrl-label">Dry / Wet</span>
+    <input type="range" id="slMix" min="0" max="1" step="0.01" value="0.5">
+    <input type="number"  id="nmMix" min="0" max="1" step="0.01" value="0.5">
+    <span class="val-badge" id="badgeMix">Dry 50% / Wet 50%</span>
+  </div>
+
+  <div class="checkbox-row">
+    <input type="checkbox" id="chkPhaseLock" checked>
+    <label for="chkPhaseLock">オシレータ位相を揃える（Phase Lock）</label>
+  </div>
+
+  <div class="transport">
+    <button id="btnStart">▶ START</button>
+    <button id="btnStop" disabled>■ STOP</button>
+    <span class="transport-hint">Space キーでトグル</span>
+  </div>
+</div>
+
+<!-- Info -->
+<div class="panel">
+  <div class="info-bar">
+    <div class="info-item">
+      <span class="info-key">位相差</span>
+      <span class="info-val" id="infoPhase">—</span>
+    </div>
+    <div class="info-item">
+      <span class="info-key">周期</span>
+      <span class="info-val" id="infoPeriod">—</span>
+    </div>
+    <div class="info-item">
+      <span class="info-key">サンプル数 @ 48 kHz</span>
+      <span class="info-val" id="infoSamples48">—</span>
+    </div>
+    <div class="info-item">
+      <span class="info-key">サンプル数 @ 96 kHz</span>
+      <span class="info-val" id="infoSamples96">—</span>
+    </div>
+  </div>
+</div>
+
+<!-- Waveform -->
+<div class="canvas-section">
+  <div class="canvas-header">
+    <span class="canvas-title">波形</span>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:var(--accent-dry)"></span>Dry</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--accent-wet)"></span>Wet (delayed)</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--accent-mix)"></span>Mix</span>
+    </div>
+  </div>
+  <canvas id="cvWave" height="100"></canvas>
+</div>
+
+<!-- FFT -->
+<div class="canvas-section">
+  <div class="canvas-header">
+    <span class="canvas-title">FFT スペクトラム</span>
+  </div>
+  <canvas id="cvFFT" height="100"></canvas>
+</div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   State
+   ============================================================ */
+const state = {
+  running: false,
+  ctx:        null,   // AudioContext
+  osc1:       null,
+  osc2:       null,
+  delayNode:  null,
+  gainDry:    null,
+  gainWet:    null,
+  analyser:   null,
+  rafId:      null,
+};
+
+/* ============================================================
+   Parameter accessors
+   ============================================================ */
+const el = id => document.getElementById(id);
+
+function getParams() {
+  return {
+    freq:  parseFloat(el('slFreq').value),
+    delay: parseFloat(el('slDelay').value),   // ms
+    mix:   parseFloat(el('slMix').value),     // 0..1 wet
+    phaseLock: el('chkPhaseLock').checked,
+  };
+}
+
+/* ============================================================
+   UI sync: slider <-> number input
+   ============================================================ */
+
+// Dry/Wet: リアルタイム同期（即時反映）
+{
+  const slider = el('slMix');
+  const num    = el('nmMix');
+  slider.addEventListener('input', () => { num.value = slider.value; onParamChange(); });
+  num.addEventListener('input', () => {
+    const clamped = Math.min(+slider.max, Math.max(+slider.min, +num.value));
+    slider.value = clamped; num.value = clamped; onParamChange();
+  });
+}
+
+// 周波数・遅延時間: スライダーはリアルタイム、数値入力はEnter/blur確定
+[['slFreq','nmFreq'],['slDelay','nmDelay']].forEach(([sliderId, numId]) => {
+  const slider = el(sliderId);
+  const num    = el(numId);
+
+  // スライダー → 数値欄に反映（即時）
+  slider.addEventListener('input', () => { num.value = slider.value; onParamChange(); });
+
+  // 入力中はスライダーだけ追随（音には反映しない）
+  num.addEventListener('input', () => {
+    const v = +num.value;
+    if (!isNaN(v)) slider.value = Math.min(+slider.max, Math.max(+slider.min, v));
+  });
+
+  // Enter またはフォーカスアウトで確定
+  function commitNum() {
+    const clamped = Math.min(+slider.max, Math.max(+slider.min, +num.value));
+    slider.value = clamped; num.value = clamped; onParamChange();
+  }
+  num.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commitNum(); num.blur(); } });
+  num.addEventListener('blur', commitNum);
+});
+
+/* ============================================================
+   Badge / info update
+   ============================================================ */
+function updateBadgesAndInfo() {
+  const { freq, delay, mix } = getParams();
+
+  el('badgeFreq').textContent  = `${freq.toFixed(1)} Hz`;
+  el('badgeDelay').textContent = `${delay.toFixed(2)} ms`;
+  el('badgeMix').textContent   = `Dry ${Math.round((1 - mix) * 100)}% / Wet ${Math.round(mix * 100)}%`;
+
+  const period   = 1000 / freq;                           // ms
+  const phaseDeg = (((delay / period) * 360) % 360 + 360) % 360;
+  const delayS   = delay / 1000;
+
+  el('infoPhase').textContent    = `${phaseDeg.toFixed(2)}°`;
+  el('infoPeriod').textContent   = `${period.toFixed(3)} ms`;
+  el('infoSamples48').textContent = (delayS * 48000).toFixed(2);
+  el('infoSamples96').textContent = (delayS * 96000).toFixed(2);
+}
+
+/* ============================================================
+   Apply params to running audio graph
+   ============================================================ */
+function applyParamsToAudio() {
+  if (!state.running) return;
+
+  const { freq, delay, mix } = getParams();
+  const t = state.ctx.currentTime;
+
+  state.osc1.frequency.setValueAtTime(freq, t);
+  state.osc2.frequency.setValueAtTime(freq, t);
+  state.delayNode.delayTime.setValueAtTime(delay / 1000, t);
+  state.gainDry.gain.setTargetAtTime(1 - mix, t, 0.01);
+  state.gainWet.gain.setTargetAtTime(mix,     t, 0.01);
+}
+
+function onParamChange() {
+  updateBadgesAndInfo();
+  applyParamsToAudio();
+}
+
+/* ============================================================
+   Audio graph
+   ============================================================ */
+function startAudio() {
+  if (state.running) return;
+
+  const { freq, delay, mix, phaseLock } = getParams();
+
+  state.ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Nodes
+  state.osc1      = state.ctx.createOscillator();
+  state.osc2      = state.ctx.createOscillator();
+  state.delayNode = state.ctx.createDelay(1.0);
+  state.gainDry   = state.ctx.createGain();
+  state.gainWet   = state.ctx.createGain();
+  state.analyser  = state.ctx.createAnalyser();
+
+  state.analyser.fftSize               = 4096;
+  state.analyser.smoothingTimeConstant = 0.85;
+  state.analyser.minDecibels           = -100;
+  state.analyser.maxDecibels           = 0;
+
+  // Initial values
+  const t0 = state.ctx.currentTime;
+  state.osc1.frequency.setValueAtTime(freq, t0);
+  state.osc2.frequency.setValueAtTime(freq, t0);
+  state.delayNode.delayTime.setValueAtTime(delay / 1000, t0);
+
+  // Fade-in gains
+  state.gainDry.gain.setValueAtTime(0, t0);
+  state.gainWet.gain.setValueAtTime(0, t0);
+  state.gainDry.gain.linearRampToValueAtTime(1 - mix, t0 + 0.02);
+  state.gainWet.gain.linearRampToValueAtTime(mix,     t0 + 0.02);
+
+  // Graph: osc1 -> gainDry -> analyser -> dest
+  //        osc2 -> delayNode -> gainWet -> analyser
+  state.osc1.connect(state.gainDry);
+  state.osc2.connect(state.delayNode);
+  state.delayNode.connect(state.gainWet);
+  state.gainDry.connect(state.analyser);
+  state.gainWet.connect(state.analyser);
+  state.analyser.connect(state.ctx.destination);
+
+  // Start oscillators
+  state.osc1.start(t0);
+  if (phaseLock) {
+    state.osc2.start(t0);
+  } else {
+    // Random phase offset within one period
+    state.osc2.start(t0 + Math.random() / freq);
+  }
+
+  state.running = true;
+  el('btnStart').disabled = true;
+  el('btnStop').disabled  = false;
+
+  scheduleDraw();
+}
+
+function stopAudio() {
+  if (!state.running) return;
+
+  const t = state.ctx.currentTime;
+  state.gainDry.gain.linearRampToValueAtTime(0, t + 0.02);
+  state.gainWet.gain.linearRampToValueAtTime(0, t + 0.02);
+
+  setTimeout(() => {
+    try { state.osc1.stop(); state.osc2.stop(); } catch (_) {}
+    try { state.ctx.close(); } catch (_) {}
+  }, 30);
+
+  state.running = false;
+  if (state.rafId) { cancelAnimationFrame(state.rafId); state.rafId = null; }
+
+  el('btnStart').disabled = false;
+  el('btnStop').disabled  = true;
+}
+
+/* ============================================================
+   Draw loop
+   ============================================================ */
+function scheduleDraw() {
+  state.rafId = requestAnimationFrame(() => {
+    if (!state.running) return;
+    drawWave();
+    drawFFT();
+    scheduleDraw();
+  });
+}
+
+/* --------------------------------------------------------
+   Helpers
+   -------------------------------------------------------- */
+const CSS = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function resolveDPR(canvas) {
+  // Sync logical vs physical size once per frame
+  const dpr = window.devicePixelRatio || 1;
+  const w   = canvas.clientWidth;
+  const h   = canvas.clientHeight;
+  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+    canvas.width  = w * dpr;
+    canvas.height = h * dpr;
+    canvas.getContext('2d').scale(dpr, dpr);
+  }
+  return { w, h };
+}
+
+/* --------------------------------------------------------
+   Waveform
+   -------------------------------------------------------- */
+function drawWave() {
+  const canvas = el('cvWave');
+  const ctx    = canvas.getContext('2d');
+  const { w, h } = resolveDPR(canvas);
+
+  ctx.clearRect(0, 0, w, h);
+
+  const { freq, delay, mix } = getParams();
+  const delayS   = delay / 1000;
+  const period   = 1 / freq;
+  const totalTime = period * 4;   // show 4 cycles
+
+  // -- Grid lines (period marks) ---------------------------------
+  ctx.strokeStyle = CSS('--grid');
+  ctx.lineWidth   = 1;
+  for (let i = 0; i <= 4; i++) {
+    const x = i / 4 * w;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, h - 16);
+    ctx.stroke();
+
+    ctx.fillStyle = CSS('--text-dim');
+    ctx.font      = `10px ${CSS('--mono')}`;
+    ctx.fillText(`${(i * period * 1000).toFixed(2)} ms`, x + 3, h - 2);
+  }
+
+  // -- Channel rows: Dry, Wet, Mix -------------------------------
+  const channels = [
+    { label: 'DRY',  color: CSS('--accent-dry'), fn: (t) =>  Math.sin(2 * Math.PI * freq * t) },
+    { label: 'WET',  color: CSS('--accent-wet'), fn: (t) =>  Math.sin(2 * Math.PI * freq * (t - delayS)) },
+    { label: 'MIX',  color: CSS('--accent-mix'), fn: (t) => {
+      const dry = Math.sin(2 * Math.PI * freq * t);
+      const wet = Math.sin(2 * Math.PI * freq * (t - delayS));
+      return (1 - mix) * dry + mix * wet;
+    }},
+  ];
+
+  const rowH    = (h - 20) / channels.length;
+  const ampPx   = rowH * 0.38;
+
+  channels.forEach(({ label, color, fn }, i) => {
+    const midY = rowH * i + rowH / 2;
+
+    // Center line
+    ctx.strokeStyle = CSS('--border');
+    ctx.lineWidth   = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, midY);
+    ctx.lineTo(w, midY);
+    ctx.stroke();
+
+    // Label
+    ctx.fillStyle = color;
+    ctx.font      = `bold 10px ${CSS('--mono')}`;
+    ctx.fillText(label, 4, midY - ampPx - 4);
+
+    // Waveform
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    for (let px = 0; px < w; px++) {
+      const t = (px / w) * totalTime;
+      const y = midY + fn(t) * ampPx;
+      if (px === 0) ctx.moveTo(px, y);
+      else          ctx.lineTo(px, y);
+    }
+    ctx.stroke();
+  });
+}
+
+/* --------------------------------------------------------
+   FFT
+   -------------------------------------------------------- */
+function drawFFT() {
+  const canvas = el('cvFFT');
+  const ctx    = canvas.getContext('2d');
+  const { w, h } = resolveDPR(canvas);
+
+  ctx.clearRect(0, 0, w, h);
+
+  const buf     = new Float32Array(state.analyser.frequencyBinCount);
+  state.analyser.getFloatFrequencyData(buf);
+
+  const nyquist = state.ctx.sampleRate / 2;
+  const minF    = 20;
+  const minDB   = state.analyser.minDecibels;  // -100
+  const maxDB   = state.analyser.maxDecibels;  //   0
+
+  const freqToX = f => Math.log10(f / minF) / Math.log10(nyquist / minF) * w;
+  const dbToY   = db => h - Math.min(1, Math.max(0, (db - minDB) / (maxDB - minDB))) * h;
+
+  // -- dB grid ---------------------------------------------------
+  ctx.lineWidth = 0.5;
+  [-80, -60, -40, -20, 0].forEach(db => {
+    const y = dbToY(db);
+    ctx.strokeStyle = CSS('--grid');
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    ctx.fillStyle = CSS('--text-dim');
+    ctx.font      = `10px ${CSS('--mono')}`;
+    ctx.fillText(`${db}`, 2, y - 2);
+  });
+
+  // -- Frequency grid --------------------------------------------
+  [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000].forEach(f => {
+    if (f > nyquist) return;
+    const x = freqToX(f);
+    ctx.strokeStyle = CSS('--grid');
+    ctx.lineWidth   = 0.5;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+
+    ctx.fillStyle = CSS('--text-dim');
+    ctx.font      = `10px ${CSS('--mono')}`;
+    const label   = f >= 1000 ? `${f / 1000}k` : `${f}`;
+    ctx.fillText(label, x + 2, h - 2);
+  });
+
+  // -- Spectrum line + peak detection ----------------------------
+  ctx.strokeStyle = CSS('--accent-ok');
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath();
+
+  let started   = false;
+  let peakDB    = -Infinity;
+  let peakBin   = 0;
+
+  for (let i = 1; i < buf.length; i++) {
+    const f  = i / buf.length * nyquist;
+    if (f < minF) continue;
+
+    const x = freqToX(f);
+    const y = dbToY(buf[i]);
+
+    if (!started) { ctx.moveTo(x, y); started = true; }
+    else          ctx.lineTo(x, y);
+
+    if (Number.isFinite(buf[i]) && buf[i] > peakDB) {
+      peakDB  = buf[i];
+      peakBin = i;
+    }
+  }
+  ctx.stroke();
+
+  // -- Peak marker -----------------------------------------------
+  if (Number.isFinite(peakDB)) {
+    const peakFreq = peakBin / buf.length * nyquist;
+    const px = freqToX(peakFreq);
+    const py = dbToY(peakDB);
+
+    ctx.strokeStyle = CSS('--accent-peak');
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, h); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Dot
+    ctx.fillStyle = CSS('--accent-peak');
+    ctx.beginPath();
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Label
+    const label = `▲ ${peakFreq.toFixed(1)} Hz  ${peakDB.toFixed(1)} dB`;
+    const tx    = Math.min(px + 8, w - 200);
+    ctx.fillStyle = CSS('--accent-peak');
+    ctx.font      = `bold 11px ${CSS('--mono')}`;
+    ctx.fillText(label, tx, py - 6 < 14 ? py + 16 : py - 6);
+  }
+}
+
+/* ============================================================
+   Event bindings
+   ============================================================ */
+el('btnStart').addEventListener('click', startAudio);
+el('btnStop').addEventListener('click',  stopAudio);
+
+document.addEventListener('keydown', e => {
+  if (e.code !== 'Space') return;
+  e.preventDefault();
+  state.running ? stopAudio() : startAudio();
+});
+
+// Init
+updateBadgesAndInfo();
+</script>
+</body>
+</html>
