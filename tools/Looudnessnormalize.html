@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>macOS &plus; ffmpeg &plus; Automator</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+<link href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="macos--ffmpeg--automator">macOS + ffmpeg + Automator</h1>
+<h2 id="ラウドネスノーマライズ自動化">ラウドネスノーマライズ自動化</h2>
+<hr>
+<h2 id="1-概要">1. 概要</h2>
+<p>この構成で実現すること：</p>
+<ul>
+<li>フォルダに入れるだけで自動処理（Automator）</li>
+<li>ラウドネス統一（EBU R128 / 2パス）</li>
+<li>出力フォーマット統一（例：FLAC）</li>
+<li>24bit相当の精度維持</li>
+<li>サンプルレート自動維持（44.1kHz → 44.1kHz など）</li>
+<li>メタデータ保持</li>
+<li>日本語ファイル名・スペース対応</li>
+</ul>
+<hr>
+<h2 id="2-必要環境の構築">2. 必要環境の構築</h2>
+<h3 id="21-homebrewをインストール">2.1 Homebrewをインストール</h3>
+<p>terminalで</p>
+<pre><code class="language-bash">/bin/bash -c <span class="hljs-string">&quot;<span class="hljs-subst">$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)</span>&quot;</span>
+</code></pre>
+<h3 id="apple-siliconでのインストール状態確認">Apple Siliconでのインストール状態確認</h3>
+<pre><code class="language-bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&#x27;eval &quot;$(/opt/homebrew/bin/brew shellenv)&quot;&#x27;</span> &gt;&gt; ~/.zprofile
+<span class="hljs-built_in">eval</span> <span class="hljs-string">&quot;<span class="hljs-subst">$(/opt/homebrew/bin/brew shellenv)</span>&quot;</span>
+</code></pre>
+<h3 id="22-必要ツールをインストール">2.2 必要ツールをインストール</h3>
+<pre><code class="language-bash">brew install ffmpeg jq
+</code></pre>
+<ul>
+<li>ffmpeg：音声処理用ライブラリ</li>
+<li>jq：JSONパース用ライブラリ</li>
+</ul>
+<h2 id="3-入出力フォルダを構成">3. 入出力フォルダを構成</h2>
+<pre><code class="language-bash"><span class="hljs-built_in">mkdir</span> -p ~/Audio/{<span class="hljs-keyword">in</span>,out,processed,<span class="hljs-built_in">log</span>}
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>フォルダ</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>in</td>
+<td>入力</td>
+</tr>
+<tr>
+<td>out</td>
+<td>出力</td>
+</tr>
+<tr>
+<td>processed</td>
+<td>処理済み</td>
+</tr>
+<tr>
+<td>log</td>
+<td>ログ</td>
+</tr>
+</tbody>
+</table>
+<h2 id="4-automatorの設定">4. Automatorの設定</h2>
+<ol>
+<li>Automatorを起動</li>
+<li>「フォルダアクション」作成</li>
+<li>対象フォルダ：~/Audio/in</li>
+<li>「シェルスクリプトを実行」追加</li>
+</ol>
+<ul>
+<li>シェル：/bin/bash</li>
+<li>入力：引数として渡す</li>
+</ul>
+<ol start="5">
+<li>下記のスクリプトをペースト</li>
+</ol>
+<pre><code class="language-bash"><span class="hljs-meta">#!/bin/bash</span>
+
+<span class="hljs-comment"># =========================================================</span>
+<span class="hljs-comment"># 変換ポリシー（ここだけ変更すれば挙動が変わる）</span>
+<span class="hljs-comment"># =========================================================</span>
+
+<span class="hljs-comment"># 出力ファイルのフォーマットを指定</span>
+OUTPUT_FORMAT=<span class="hljs-string">&quot;flac&quot;</span>   <span class="hljs-comment"># flac / wav / aac / mp3</span>
+
+<span class="hljs-comment"># 出力ファイルのLUFSを指定 デフォルトは-16LUFS</span>
+TARGET_I=<span class="hljs-string">&quot;-16&quot;</span>
+TARGET_TP=<span class="hljs-string">&quot;-1.5&quot;</span>
+TARGET_LRA=<span class="hljs-string">&quot;11&quot;</span>
+
+<span class="hljs-comment"># 出力ファイルのサンプルレートを指定 autoなら入力ファイルと同じ</span>
+SAMPLE_RATE_MODE=<span class="hljs-string">&quot;auto&quot;</span>   <span class="hljs-comment"># auto / fixed</span>
+<span class="hljs-comment"># ↑がfixedの場合ここで指定したfsになる</span>
+FORCE_SAMPLE_RATE=<span class="hljs-string">&quot;44100&quot;</span>
+
+<span class="hljs-comment"># 出力ファイルのbit depth</span>
+BIT_DEPTH=<span class="hljs-string">&quot;24&quot;</span>            <span class="hljs-comment"># 16 / 24 / 32</span>
+
+<span class="hljs-comment"># アートワークを残すかどうか</span>
+KEEP_ARTWORK=<span class="hljs-string">&quot;false&quot;</span>      <span class="hljs-comment"># true / false</span>
+
+<span class="hljs-comment"># =========================================================</span>
+<span class="hljs-comment"># ここから下は編集非推奨</span>
+<span class="hljs-comment"># =========================================================</span>
+
+<span class="hljs-comment"># =========================================================</span>
+<span class="hljs-comment"># 実行バイナリ</span>
+<span class="hljs-comment"># =========================================================</span>
+
+FFMPEG=<span class="hljs-string">&quot;/opt/homebrew/bin/ffmpeg&quot;</span>
+FFPROBE=<span class="hljs-string">&quot;/opt/homebrew/bin/ffprobe&quot;</span>
+JQ=<span class="hljs-string">&quot;/opt/homebrew/bin/jq&quot;</span>
+
+<span class="hljs-comment"># =========================================================</span>
+<span class="hljs-comment"># ディレクトリ</span>
+<span class="hljs-comment"># =========================================================</span>
+
+BASE=<span class="hljs-string">&quot;<span class="hljs-variable">$HOME</span>/Audio&quot;</span>
+OUT_DIR=<span class="hljs-string">&quot;<span class="hljs-variable">$BASE</span>/out&quot;</span>
+PROCESSED_DIR=<span class="hljs-string">&quot;<span class="hljs-variable">$BASE</span>/processed&quot;</span>
+LOG_DIR=<span class="hljs-string">&quot;<span class="hljs-variable">$BASE</span>/log&quot;</span>
+LOG_FILE=<span class="hljs-string">&quot;<span class="hljs-variable">$LOG_DIR</span>/process.log&quot;</span>
+
+<span class="hljs-built_in">mkdir</span> -p <span class="hljs-string">&quot;<span class="hljs-variable">$OUT_DIR</span>&quot;</span> <span class="hljs-string">&quot;<span class="hljs-variable">$PROCESSED_DIR</span>&quot;</span> <span class="hljs-string">&quot;<span class="hljs-variable">$LOG_DIR</span>&quot;</span>
+
+<span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;==== <span class="hljs-subst">$(date)</span> START ====&quot;</span> &gt;&gt; <span class="hljs-string">&quot;<span class="hljs-variable">$LOG_FILE</span>&quot;</span>
+
+<span class="hljs-comment"># =========================================================</span>
+<span class="hljs-comment"># ビットデプス</span>
+<span class="hljs-comment"># =========================================================</span>
+
+<span class="hljs-keyword">case</span> <span class="hljs-string">&quot;<span class="hljs-variable">$BIT_DEPTH</span>&quot;</span> <span class="hljs-keyword">in</span>
+  16) SAMPLE_FMT=<span class="hljs-string">&quot;s16&quot;</span> ;;
+  24) SAMPLE_FMT=<span class="hljs-string">&quot;s32&quot;</span> ;;  <span class="hljs-comment"># 実質24bit</span>
+  32) SAMPLE_FMT=<span class="hljs-string">&quot;s32&quot;</span> ;;
+  *) SAMPLE_FMT=<span class="hljs-string">&quot;s32&quot;</span> ;;
+<span class="hljs-keyword">esac</span>
+
+<span class="hljs-comment"># =========================================================</span>
+<span class="hljs-comment"># フォーマット</span>
+<span class="hljs-comment"># =========================================================</span>
+
+<span class="hljs-keyword">case</span> <span class="hljs-string">&quot;<span class="hljs-variable">$OUTPUT_FORMAT</span>&quot;</span> <span class="hljs-keyword">in</span>
+  flac)
+    CODEC_BASE=<span class="hljs-string">&quot;-c:a flac -sample_fmt <span class="hljs-variable">$SAMPLE_FMT</span>&quot;</span>
+    EXT=<span class="hljs-string">&quot;flac&quot;</span>
+    ;;
+  wav)
+    CODEC_BASE=<span class="hljs-string">&quot;-c:a pcm_<span class="hljs-variable">${SAMPLE_FMT}</span>le&quot;</span>
+    EXT=<span class="hljs-string">&quot;wav&quot;</span>
+    ;;
+  aac)
+    CODEC_BASE=<span class="hljs-string">&quot;-c:a aac -b:a 192k&quot;</span>
+    EXT=<span class="hljs-string">&quot;m4a&quot;</span>
+    ;;
+  mp3)
+    CODEC_BASE=<span class="hljs-string">&quot;-c:a libmp3lame -b:a 192k&quot;</span>
+    EXT=<span class="hljs-string">&quot;mp3&quot;</span>
+    ;;
+  *)
+    CODEC_BASE=<span class="hljs-string">&quot;-c:a flac -sample_fmt s32&quot;</span>
+    EXT=<span class="hljs-string">&quot;flac&quot;</span>
+    ;;
+<span class="hljs-keyword">esac</span>
+
+<span class="hljs-comment"># =========================================================</span>
+<span class="hljs-comment"># メイン処理</span>
+<span class="hljs-comment"># =========================================================</span>
+
+<span class="hljs-keyword">for</span> f <span class="hljs-keyword">in</span> <span class="hljs-string">&quot;<span class="hljs-variable">$@</span>&quot;</span>; <span class="hljs-keyword">do</span>
+
+  [ ! -f <span class="hljs-string">&quot;<span class="hljs-variable">$f</span>&quot;</span> ] &amp;&amp; <span class="hljs-built_in">continue</span>
+
+  <span class="hljs-comment"># コピー完了待ち</span>
+  prev=-1
+  <span class="hljs-keyword">while</span> <span class="hljs-literal">true</span>; <span class="hljs-keyword">do</span>
+    size=$(<span class="hljs-built_in">stat</span> -f%z <span class="hljs-string">&quot;<span class="hljs-variable">$f</span>&quot;</span>)
+    [ <span class="hljs-string">&quot;<span class="hljs-variable">$size</span>&quot;</span> -eq <span class="hljs-string">&quot;<span class="hljs-variable">$prev</span>&quot;</span> ] &amp;&amp; <span class="hljs-built_in">break</span>
+    prev=<span class="hljs-variable">$size</span>
+    <span class="hljs-built_in">sleep</span> 2
+  <span class="hljs-keyword">done</span>
+
+  filename=$(<span class="hljs-built_in">basename</span> <span class="hljs-string">&quot;<span class="hljs-variable">$f</span>&quot;</span>)
+  name=<span class="hljs-string">&quot;<span class="hljs-variable">${filename%.*}</span>&quot;</span>
+  OUT_FILE=<span class="hljs-string">&quot;<span class="hljs-variable">$OUT_DIR</span>/<span class="hljs-variable">${name}</span>.<span class="hljs-variable">${EXT}</span>&quot;</span>
+
+  <span class="hljs-comment"># サンプルレート取得</span>
+  INPUT_SR=$(<span class="hljs-variable">$FFPROBE</span> -v error \
+    -select_streams a:0 \
+    -show_entries stream=sample_rate \
+    -of default=noprint_wrappers=1:nokey=1 \
+    <span class="hljs-string">&quot;<span class="hljs-variable">$f</span>&quot;</span>)
+
+  <span class="hljs-comment"># サンプルレート決定</span>
+  <span class="hljs-keyword">if</span> [ <span class="hljs-string">&quot;<span class="hljs-variable">$SAMPLE_RATE_MODE</span>&quot;</span> = <span class="hljs-string">&quot;auto&quot;</span> ]; <span class="hljs-keyword">then</span>
+    OUTPUT_SR=<span class="hljs-string">&quot;<span class="hljs-variable">$INPUT_SR</span>&quot;</span>
+  <span class="hljs-keyword">else</span>
+    OUTPUT_SR=<span class="hljs-string">&quot;<span class="hljs-variable">$FORCE_SAMPLE_RATE</span>&quot;</span>
+  <span class="hljs-keyword">fi</span>
+
+  <span class="hljs-comment"># マッピング</span>
+  <span class="hljs-keyword">if</span> [ <span class="hljs-string">&quot;<span class="hljs-variable">$KEEP_ARTWORK</span>&quot;</span> = <span class="hljs-string">&quot;true&quot;</span> ]; <span class="hljs-keyword">then</span>
+    MAP_OPT=<span class="hljs-string">&quot;-map 0 -c:v copy&quot;</span>
+  <span class="hljs-keyword">else</span>
+    MAP_OPT=<span class="hljs-string">&quot;-map 0:a&quot;</span>
+  <span class="hljs-keyword">fi</span>
+
+  <span class="hljs-comment"># 1パス目</span>
+  json=$(<span class="hljs-variable">$FFMPEG</span> -i <span class="hljs-string">&quot;<span class="hljs-variable">$f</span>&quot;</span> \
+    -map 0:a \
+    -af loudnorm=I=<span class="hljs-variable">$TARGET_I</span>:TP=<span class="hljs-variable">$TARGET_TP</span>:LRA=<span class="hljs-variable">$TARGET_LRA</span>:print_format=json \
+    -f null - 2&gt;&amp;1)
+
+  json_clean=$(<span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;<span class="hljs-variable">$json</span>&quot;</span> | sed -n <span class="hljs-string">&#x27;/^{/,/}$/p&#x27;</span>)
+
+  I=$(<span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;<span class="hljs-variable">$json_clean</span>&quot;</span> | <span class="hljs-variable">$JQ</span> -r <span class="hljs-string">&#x27;.input_i&#x27;</span>)
+  TP=$(<span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;<span class="hljs-variable">$json_clean</span>&quot;</span> | <span class="hljs-variable">$JQ</span> -r <span class="hljs-string">&#x27;.input_tp&#x27;</span>)
+  LRA=$(<span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;<span class="hljs-variable">$json_clean</span>&quot;</span> | <span class="hljs-variable">$JQ</span> -r <span class="hljs-string">&#x27;.input_lra&#x27;</span>)
+  THRESH=$(<span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;<span class="hljs-variable">$json_clean</span>&quot;</span> | <span class="hljs-variable">$JQ</span> -r <span class="hljs-string">&#x27;.input_thresh&#x27;</span>)
+  OFFSET=$(<span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;<span class="hljs-variable">$json_clean</span>&quot;</span> | <span class="hljs-variable">$JQ</span> -r <span class="hljs-string">&#x27;.target_offset&#x27;</span>)
+
+  <span class="hljs-comment"># 2パス目</span>
+  <span class="hljs-variable">$FFMPEG</span> -y -i <span class="hljs-string">&quot;<span class="hljs-variable">$f</span>&quot;</span> \
+    <span class="hljs-variable">$MAP_OPT</span> \
+    -map_metadata 0 \
+    -af loudnorm=I=<span class="hljs-variable">$TARGET_I</span>:TP=<span class="hljs-variable">$TARGET_TP</span>:LRA=<span class="hljs-variable">$TARGET_LRA</span>:\
+measured_I=<span class="hljs-variable">$I</span>:measured_TP=<span class="hljs-variable">$TP</span>:measured_LRA=<span class="hljs-variable">$LRA</span>:\
+measured_thresh=<span class="hljs-variable">$THRESH</span>:offset=<span class="hljs-variable">$OFFSET</span>:linear=<span class="hljs-literal">true</span> \
+    -ar <span class="hljs-string">&quot;<span class="hljs-variable">$OUTPUT_SR</span>&quot;</span> \
+    <span class="hljs-variable">$CODEC_BASE</span> \
+    <span class="hljs-string">&quot;<span class="hljs-variable">$OUT_FILE</span>&quot;</span>
+
+  <span class="hljs-built_in">mv</span> <span class="hljs-string">&quot;<span class="hljs-variable">$f</span>&quot;</span> <span class="hljs-string">&quot;<span class="hljs-variable">$PROCESSED_DIR</span>/&quot;</span>
+
+<span class="hljs-keyword">done</span>
+
+<span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;==== <span class="hljs-subst">$(date)</span> END ====&quot;</span> &gt;&gt; <span class="hljs-string">&quot;<span class="hljs-variable">$LOG_FILE</span>&quot;</span>
+</code></pre>
+<h2 id="6-動作確認">6. 動作確認</h2>
+<ol>
+<li>~/Audio/in に音声ファイルを投入</li>
+<li>自動処理される</li>
+<li>結果確認：</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>内容</th>
+<th>パス</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>出力</td>
+<td>~/Audio/out</td>
+</tr>
+<tr>
+<td>元ファイル</td>
+<td>~/Audio/processed</td>
+</tr>
+<tr>
+<td>ログ</td>
+<td>~/Audio/log/process.log</td>
+</tr>
+</tbody>
+</table>
+<h2 id="7-設定">7. 設定</h2>
+<p>スクリプト冒頭に設定パラメーターをまとめてある。</p>
+<h3 id="71-output_format">7.1 OUTPUT_FORMAT</h3>
+<p>デフォルトはFLAC。ほかwav、aac、mp3に対応</p>
+<h3 id="72-target_i">7.2 TARGET_I</h3>
+<p>LUFSを設定。デフォルトは-16。任意の数値を指定</p>
+<h3 id="73-sample_rate_mode">7.3 SAMPLE_RATE_MODE</h3>
+<p>デフォルトはauto入力ファイルのサンプルレートを保持)。fixedでFORCE_SAMPLE_RATEで指定したサンプルレートに変換</p>
+<h3 id="74-force_sample_rate">7.4 FORCE_SAMPLE_RATE</h3>
+<p>SAMPLE_RATE_MODEがfixedの時のサンプルレート。44100、48000、88200、9600、176400、192000に対応している(はず)。</p>
+<p>※ffmpegのラウドネスノーマライズ機能がいったん192kHzにアップサンプリングしてから処理する仕様のため。</p>
+<h3 id="75-bit_depth">7.5 BIT_DEPTH</h3>
+<p>出力ファイルのビットデプス。デフォルトは24(レベル操作に伴う量子化ノイズ発生を回避)</p>
+<h3 id="76-keep_artwork">7.6 KEEP_ARTWORK</h3>
+<p>ジャケ写データを削除する/しない。デフォルトはfalse(削除)</p>
+
+            <script async src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script>
+            
+        </body>
+        </html>
