@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body{font-family:sans-serif;background:#f1f5f9;margin:20px;}
+.card{background:#fff;padding:16px;margin-bottom:16px;border-radius:10px;}
+.row{display:grid;grid-template-columns:160px 1fr 80px;gap:8px;margin-top:10px;}
+canvas{height:220px!important;}
+</style>
+</head>
+<body>
+
+<h2>EQ Analyzer Pro（視認性最適化版）</h2>
+
+<div class="card"><canvas id="mag"></canvas></div>
+<div class="card"><canvas id="phase"></canvas></div>
+<div class="card"><canvas id="gd"></canvas></div>
+
+<div class="card">
+
+<div class="row">
+<label>Freq (Hz)</label>
+<input type="range" id="freq" min="0" max="1" step="0.001">
+<input type="number" id="freqNum">
+</div>
+
+<div class="row">
+<label>Gain (dB)</label>
+<input type="range" id="gain" min="-18" max="18" step="0.1">
+<input type="number" id="gainNum">
+</div>
+
+<div class="row">
+<label>Q</label>
+<input type="range" id="q" min="0.2" max="10" step="0.01">
+<input type="number" id="qNum">
+</div>
+
+<div class="row">
+<label>Taps</label>
+<input type="range" id="taps" min="33" max="2049" step="2">
+<input type="number" id="tapsNum">
+</div>
+
+<select id="mode">
+<option value="compare">Compare</option>
+<option value="iir">IIR</option>
+<option value="firMin">FIR Min</option>
+<option value="firLin">FIR Lin</option>
+</select>
+
+<select id="phaseMode">
+<option value="wrap">Wrap</option>
+<option value="unwrap">Unwrap</option>
+</select>
+
+</div>
+
+<script>
+const fs=48000,EPS=1e-9;
+const FMIN=20,FMAX=20000;
+
+/* log slider */
+function sliderToFreq(v){
+ return FMIN*Math.pow(FMAX/FMIN,v);
+}
+function freqToSlider(f){
+ return Math.log(f/FMIN)/Math.log(FMAX/FMIN);
+}
+
+/* sync */
+function bind(sl, num, fn){
+ sl.oninput=()=>{
+  let v=+sl.value;
+  if(fn) v=fn(v);
+  num.value=v;
+  update();
+ };
+ num.oninput=()=>{
+  let v=+num.value;
+  if(fn==="inv") v=freqToSlider(v);
+  sl.value=v;
+  update();
+ };
+}
+
+/* IIR */
+function biquad(f0,g,Q){
+ let A=Math.pow(10,g/40);
+ let w=2*Math.PI*f0/fs;
+ let a=Math.sin(w)/(2*Q);
+ let c=Math.cos(w);
+ let b0=1+a*A,b1=-2*c,b2=1-a*A;
+ let a0=1+a/A,a1=-2*c,a2=1-a/A;
+ return {b0:b0/a0,b1:b1/a0,b2:b2/a0,a1:a1/a0,a2:a2/a0};
+}
+function iirH(bq,f){
+ let w=2*Math.PI*f/fs;
+ let c=Math.cos(w),s=Math.sin(w);
+ let c2=Math.cos(2*w),s2=Math.sin(2*w);
+ let nr=bq.b0+bq.b1*c+bq.b2*c2;
+ let ni=-(bq.b1*s+bq.b2*s2);
+ let dr=1+bq.a1*c+bq.a2*c2;
+ let di=-(bq.a1*s+bq.a2*s2);
+ let d=dr*dr+di*di;
+ return {re:(nr*dr+ni*di)/d, im:(ni*dr-nr*di)/d};
+}
+
+/* FIR（簡略：前版と同様思想） */
+function firSimple(bq,L,type){
+ let h=new Array(L).fill(0);
+ let mid=(L-1)/2;
+ for(let i=0;i<L;i++){
+  let x=i-mid;
+  let w=0.5-0.5*Math.cos(2*Math.PI*i/(L-1));
+  h[i]=Math.exp(-Math.abs(x)/10)*w;
+ }
+ return h;
+}
+function firH(h,f){
+ let w=2*Math.PI*f/fs,re=0,im=0;
+ for(let n=0;n<h.length;n++){
+  re+=h[n]*Math.cos(w*n);
+  im-=h[n]*Math.sin(w*n);
+ }
+ return {re,im};
+}
+
+/* unwrap */
+function unwrap(p){
+ let out=[p[0]];
+ for(let i=1;i<p.length;i++){
+  let d=p[i]-p[i-1];
+  if(d>180)p[i]-=360;
+  if(d<-180)p[i]+=360;
+  out.push(p[i]);
+ }
+ return out;
+}
+
+/* freq grid */
+let freqs=[];
+for(let i=0;i<400;i++){
+ let t=i/399;
+ freqs.push(FMIN*Math.pow(FMAX/FMIN,t));
+}
+
+/* charts */
+function makeChart(id,ymin,ymax){
+ return new Chart(document.getElementById(id),{
+  type:"line",
+  data:{datasets:[]},
+  options:{
+   responsive:true,
+   maintainAspectRatio:false,
+   scales:{
+    x:{type:"logarithmic",min:FMIN,max:FMAX},
+    y:{min:ymin,max:ymax}
+   }
+  }
+ });
+}
+
+const magC=makeChart("mag",-18,18);
+const phC=makeChart("phase",-360,360);
+const gdC=makeChart("gd",0,2048);
+
+/* update */
+function update(){
+ let f0=sliderToFreq(+freq.value);
+ let g=+gain.value;
+ let Q=+q.value;
+ let L=(+taps.value)|1;
+ let bq=biquad(f0,g,Q);
+
+ function build(fn){
+  let mag=[],ph=[];
+  for(let f of freqs){
+   let H=fn(f);
+   let m=20*Math.log10(Math.sqrt(H.re*H.re+H.im*H.im)+EPS);
+   let p=Math.atan2(H.im,H.re)*180/Math.PI;
+   mag.push({x:f,y:m});
+   ph.push(p);
+  }
+  if(phaseMode.value==="unwrap") ph=unwrap(ph);
+  let gd=[];
+  for(let i=1;i<ph.length;i++){
+   let dp=(ph[i]-ph[i-1])*Math.PI/180;
+   let dw=2*Math.PI*(freqs[i]-freqs[i-1])/fs;
+   gd.push(-dp/dw);
+  }
+  gd.unshift(gd[0]);
+
+  return {mag,ph:ph.map((v,i)=>({x:freqs[i],y:v})),gd:gd.map((v,i)=>({x:freqs[i],y:v}))};
+ }
+
+ let dataIIR=build(f=>iirH(bq,f));
+ let h=firSimple(bq,L,"lin");
+ let dataFIR=build(f=>firH(h,f));
+
+ magC.data.datasets=[
+  {data:dataIIR.mag,borderColor:"blue",pointRadius:0},
+  {data:dataFIR.mag,borderColor:"red",pointRadius:0}
+ ];
+
+ phC.data.datasets=[
+  {data:dataIIR.ph,borderColor:"blue",borderDash:[5,5]},
+  {data:dataFIR.ph,borderColor:"red",borderDash:[5,5]}
+ ];
+
+ gdC.data.datasets=[
+  {data:dataIIR.gd,borderColor:"blue"},
+  {data:dataFIR.gd,borderColor:"red"}
+ ];
+
+ magC.update(); phC.update(); gdC.update();
+}
+
+/* bind */
+bind(freq,freqNum,v=>sliderToFreq(v));
+bind(gain,gainNum);
+bind(q,qNum);
+bind(taps,tapsNum);
+
+[freq,gain,q,taps,mode,phaseMode].forEach(e=>e.oninput=update);
+
+freq.value=0.5; gain.value=6; q.value=1; taps.value=513;
+update();
+
+</script>
+</body>
+</html>

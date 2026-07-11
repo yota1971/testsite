@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>4band EQ：Magnitude / Phase / Group Delay</title>
+
+  <!-- Chart.js (UMD) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    body{
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans JP",sans-serif;
+      margin:16px; color:#111;
+    }
+    h2{ margin:0 0 12px; }
+
+    .panel{
+      border:1px solid #ddd; border-radius:16px; padding:12px; max-width:1180px;
+      background:#fff;
+    }
+    .toprow{
+      display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-bottom:10px;
+    }
+    .pill{
+      display:flex; align-items:center; gap:10px;
+      border:1px solid #ddd; border-radius:999px; padding:6px 10px; background:#fafafa;
+      font-size:13px;
+    }
+    .row{ display:flex; flex-wrap:wrap; gap:14px; align-items:stretch; }
+
+    .band{
+      border:1px solid #e5e5e5; border-radius:14px; padding:10px; min-width:360px;
+      background:#fafafa;
+    }
+    .band h3{
+      margin:0 0 8px; font-size:14px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .controls{ display:grid; grid-template-columns: 1fr; gap:8px; }
+    label{
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+      font-size:13px;
+    }
+    input[type=range]{ width:210px; }
+    select{
+      padding:4px 6px; border-radius:10px; border:1px solid #ddd; background:#fff;
+    }
+    .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    .note{ color:#444; font-size:12px; margin-top:8px; line-height:1.35; }
+    .disabled { opacity: .55; }
+
+    .charts{
+      max-width:1180px; margin-top:12px;
+      display:grid; grid-template-columns: 1fr; gap:12px;
+    }
+    .chartCard{
+      border:1px solid #ddd; border-radius:16px; padding:10px; background:#fff;
+    }
+    canvas{ height:240px !important; }
+  </style>
+</head>
+
+<body>
+  <h2>4band EQ（Low/LM/HM/High）— Mag / Phase / GD</h2>
+
+  <div class="panel">
+    <div class="toprow">
+      <div class="pill">
+        <span>サンプルレート Fs</span>
+        <select id="fs">
+          <option value="44100">44100</option>
+          <option value="48000" selected>48000</option>
+          <option value="88200">88200</option>
+          <option value="96000">96000</option>
+        </select>
+        <span class="mono">Hz</span>
+      </div>
+
+      <div class="pill">
+        <label style="gap:8px; margin:0;">
+          <input id="showBands" type="checkbox" checked />
+          <span>（任意）各バンド個別カーブも重ねる</span>
+        </label>
+      </div>
+
+    </div>
+
+    <div class="row">
+      <!-- Low band -->
+      <div class="band">
+        <h3>
+          <span>Low</span>
+          <label style="gap:8px; font-size:12px;">
+            <span>Bypass</span>
+            <input id="lowByp" type="checkbox">
+          </label>
+        </h3>
+
+        <div class="controls">
+          <label>
+            <span>Type</span>
+            <select id="lowType">
+              <option value="hpf">HPF</option>
+              <option value="lowshelf">Low Shelf</option>
+              <option value="peaking" selected>PEQ</option>
+            </select>
+          </label>
+
+          <label>
+            <span>f0 (Hz)</span>
+            <input id="lowF" type="range" min="0" max="5000" value="0" step="1"
+                   data-minhz="20" data-maxhz="2000" data-init="120" data-clamp-nyq="0">
+            <span id="lowFv" class="mono">120</span>
+          </label>
+
+          <label id="lowGainRow">
+            <span>Gain (dB)</span>
+            <input id="lowG" type="range" min="-18" max="18" value="3" step="0.5">
+            <span id="lowGv" class="mono">3.0</span>
+          </label>
+
+          <label>
+            <span>Q / S</span>
+            <input id="lowQ" type="range" min="0.3" max="12" value="0.8" step="0.05">
+            <span id="lowQv" class="mono">0.80</span>
+          </label>
+
+          <div class="note">
+            HPF時：Q（共振感）／Shelf時：S（傾き）／PEQ時：Q（帯域幅）
+          </div>
+        </div>
+      </div>
+
+      <!-- Low-mid -->
+      <div class="band">
+        <h3>
+          <span>Low-Mid（PEQ）</span>
+          <label style="gap:8px; font-size:12px;">
+            <span>Bypass</span>
+            <input id="lmByp" type="checkbox">
+          </label>
+        </h3>
+
+        <div class="controls">
+          <label>
+            <span>f0 (Hz)</span>
+            <input id="lmF" type="range" min="0" max="5000" value="0" step="1"
+                   data-minhz="80" data-maxhz="8000" data-init="400" data-clamp-nyq="1">
+            <span id="lmFv" class="mono">400</span>
+          </label>
+
+          <label>
+            <span>Gain (dB)</span>
+            <input id="lmG" type="range" min="-18" max="18" value="-2" step="0.5">
+            <span id="lmGv" class="mono">-2.0</span>
+          </label>
+
+          <label>
+            <span>Q</span>
+            <input id="lmQ" type="range" min="0.3" max="12" value="1.2" step="0.1">
+            <span id="lmQv" class="mono">1.2</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- High-mid -->
+      <div class="band">
+        <h3>
+          <span>High-Mid（PEQ）</span>
+          <label style="gap:8px; font-size:12px;">
+            <span>Bypass</span>
+            <input id="hmByp" type="checkbox">
+          </label>
+        </h3>
+
+        <div class="controls">
+          <label>
+            <span>f0 (Hz)</span>
+            <input id="hmF" type="range" min="0" max="5000" value="0" step="1"
+                   data-minhz="200" data-maxhz="16000" data-init="2500" data-clamp-nyq="1">
+            <span id="hmFv" class="mono">2500</span>
+          </label>
+
+          <label>
+            <span>Gain (dB)</span>
+            <input id="hmG" type="range" min="-18" max="18" value="4" step="0.5">
+            <span id="hmGv" class="mono">4.0</span>
+          </label>
+
+          <label>
+            <span>Q</span>
+            <input id="hmQ" type="range" min="0.3" max="12" value="1.0" step="0.1">
+            <span id="hmQv" class="mono">1.0</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- High band -->
+      <div class="band">
+        <h3>
+          <span>High</span>
+          <label style="gap:8px; font-size:12px;">
+            <span>Bypass</span>
+            <input id="highByp" type="checkbox">
+          </label>
+        </h3>
+
+        <div class="controls">
+          <label>
+            <span>Type</span>
+            <select id="highType">
+              <option value="highshelf">High Shelf</option>
+              <option value="lpf">LPF</option>
+              <option value="peaking" selected>PEQ</option>
+            </select>
+          </label>
+
+          <label>
+            <span>f0 (Hz)</span>
+            <input id="highF" type="range" min="0" max="5000" value="0" step="1"
+                   data-minhz="500" data-maxhz="20000" data-init="9000" data-clamp-nyq="1">
+            <span id="highFv" class="mono">9000</span>
+          </label>
+
+          <label id="highGainRow">
+            <span>Gain (dB)</span>
+            <input id="highG" type="range" min="-18" max="18" value="2" step="0.5">
+            <span id="highGv" class="mono">2.0</span>
+          </label>
+
+          <label>
+            <span>Q / S</span>
+            <input id="highQ" type="range" min="0.3" max="12" value="0.9" step="0.05">
+            <span id="highQv" class="mono">0.90</span>
+          </label>
+
+          <div class="note">
+            LPF時：Q（共振感）／Shelf時：S（傾き）／PEQ時：Q（帯域幅）
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="chartCard"><canvas id="mag"></canvas></div>
+    <div class="chartCard"><canvas id="ph"></canvas></div>
+    <div class="chartCard"><canvas id="gd"></canvas></div>
+  </div>
+
+<script>
+(() => {
+  // Chart.js が defer 読み込みなので、念のため存在確認してから開始
+  function boot(){
+    if (typeof Chart === 'undefined') { requestAnimationFrame(boot); return; }
+
+    // ===== Colorblind-friendly palette (Okabe–Ito) =====
+    const COL = {
+      blue:   '#0072B2', // Phase
+      vermil: '#D55E00', // Group Delay
+      green:  '#009E73', // Total magnitude
+      purple: '#CC79A7',
+      sky:    '#56B4E9',
+      gray:   '#666666',
+      black:  '#000000',
+      light:  '#EAEAEA'
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const ui = {
+      fs: $('fs'),
+      showBands: $('showBands'),
+
+      lowType: $('lowType'), lowByp: $('lowByp'),
+      lowF: $('lowF'), lowFv: $('lowFv'),
+      lowG: $('lowG'), lowGv: $('lowGv'),
+      lowQ: $('lowQ'), lowQv: $('lowQv'),
+      lowGainRow: $('lowGainRow'),
+
+      lmByp: $('lmByp'),
+      lmF: $('lmF'), lmFv: $('lmFv'),
+      lmG: $('lmG'), lmGv: $('lmGv'),
+      lmQ: $('lmQ'), lmQv: $('lmQv'),
+
+      hmByp: $('hmByp'),
+      hmF: $('hmF'), hmFv: $('hmFv'),
+      hmG: $('hmG'), hmGv: $('hmGv'),
+      hmQ: $('hmQ'), hmQv: $('hmQv'),
+
+      highType: $('highType'), highByp: $('highByp'),
+      highF: $('highF'), highFv: $('highFv'),
+      highG: $('highG'), highGv: $('highGv'),
+      highQ: $('highQ'), highQv: $('highQv'),
+      highGainRow: $('highGainRow')
+    };
+
+    // ===== Log slider mapping (0..5000) <-> Hz =====
+    function getMaxHzForSlider(el, Fs){
+      const minHz = +el.dataset.minhz;
+      let maxHz = +el.dataset.maxhz;
+
+      const clampNyq = (el.dataset.clampNyq === '1');
+      if (clampNyq){
+        const nyqMax = (Fs/2) * 0.98;
+        maxHz = Math.min(maxHz, nyqMax);
+      }
+      return { minHz, maxHz: Math.max(minHz * 1.0001, maxHz) };
+    }
+
+    function sliderToHz(el, Fs){
+      const {minHz, maxHz} = getMaxHzForSlider(el, Fs);
+      const t = (+el.value) / 5000; // 0..1
+      return minHz * Math.pow(maxHz/minHz, t);
+    }
+
+    function hzToSlider(el, Hz, Fs){
+      const {minHz, maxHz} = getMaxHzForSlider(el, Fs);
+      const f = Math.min(Math.max(Hz, minHz), maxHz);
+      const t = Math.log(f/minHz) / Math.log(maxHz/minHz);
+      return Math.round(t * 5000);
+    }
+
+    function initFreqSliders(){
+      const Fs = +ui.fs.value;
+      ui.lowF.value  = hzToSlider(ui.lowF,  +ui.lowF.dataset.init,  Fs);
+      ui.lmF.value   = hzToSlider(ui.lmF,   +ui.lmF.dataset.init,   Fs);
+      ui.hmF.value   = hzToSlider(ui.hmF,   +ui.hmF.dataset.init,   Fs);
+      ui.highF.value = hzToSlider(ui.highF, +ui.highF.dataset.init, Fs);
+    }
+
+    function resyncFreqSlidersOnFsChange(){
+      const Fs = +ui.fs.value;
+      const lowHz  = sliderToHz(ui.lowF,  Fs);
+      const lmHz   = sliderToHz(ui.lmF,   Fs);
+      const hmHz   = sliderToHz(ui.hmF,   Fs);
+      const highHz = sliderToHz(ui.highF, Fs);
+
+      ui.lowF.value  = hzToSlider(ui.lowF,  lowHz,  Fs);
+      ui.lmF.value   = hzToSlider(ui.lmF,   lmHz,   Fs);
+      ui.hmF.value   = hzToSlider(ui.hmF,   hmHz,   Fs);
+      ui.highF.value = hzToSlider(ui.highF, highHz, Fs);
+    }
+
+    // ===== Minimal complex ops =====
+    const c = (re, im) => ({re, im});
+    const cmul = (a,b) => c(a.re*b.re - a.im*b.im, a.re*b.im + a.im*b.re);
+    const cadd = (a,b) => c(a.re+b.re, a.im+b.im);
+    const cdiv = (a,b) => {
+      const d = b.re*b.re + b.im*b.im;
+      return c((a.re*b.re + a.im*b.im)/d, (a.im*b.re - a.re*b.im)/d);
+    };
+    const cabs = (a) => Math.hypot(a.re, a.im);
+    const carg = (a) => Math.atan2(a.im, a.re);
+    const expNegJ = (w) => c(Math.cos(w), -Math.sin(w));
+    const db = (x) => 20*Math.log10(Math.max(1e-12, x));
+
+    function wrapDeg(deg){
+      return ((deg + 180) % 360 + 360) % 360 - 180;
+    }
+
+    // ===== RBJ Cookbook biquad coefficients (normalized a0=1) =====
+    function peaking(Fs, f0, Q, gainDb){
+      const A = Math.pow(10, gainDb/40);
+      const w0 = 2*Math.PI*(f0/Fs);
+      const alpha = Math.sin(w0)/(2*Q);
+      const b0 = 1 + alpha*A;
+      const b1 = -2*Math.cos(w0);
+      const b2 = 1 - alpha*A;
+      const a0 = 1 + alpha/A;
+      const a1 = -2*Math.cos(w0);
+      const a2 = 1 - alpha/A;
+      return {b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0};
+    }
+
+    function lowshelf(Fs, f0, S, gainDb){
+      const A = Math.pow(10, gainDb/40);
+      const w0 = 2*Math.PI*(f0/Fs);
+      const cosw0 = Math.cos(w0), sinw0 = Math.sin(w0);
+      const alpha = sinw0/2 * Math.sqrt((A + 1/A)*(1/Math.max(1e-6,S) - 1) + 2);
+      const beta  = 2*Math.sqrt(A)*alpha;
+      const b0 =    A*((A+1) - (A-1)*cosw0 + beta);
+      const b1 =  2*A*((A-1) - (A+1)*cosw0);
+      const b2 =    A*((A+1) - (A-1)*cosw0 - beta);
+      const a0 =       (A+1) + (A-1)*cosw0 + beta;
+      const a1 =   -2*((A-1) + (A+1)*cosw0);
+      const a2 =       (A+1) + (A-1)*cosw0 - beta;
+      return {b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0};
+    }
+
+    function highshelf(Fs, f0, S, gainDb){
+      const A = Math.pow(10, gainDb/40);
+      const w0 = 2*Math.PI*(f0/Fs);
+      const cosw0 = Math.cos(w0), sinw0 = Math.sin(w0);
+      const alpha = sinw0/2 * Math.sqrt((A + 1/A)*(1/Math.max(1e-6,S) - 1) + 2);
+      const beta  = 2*Math.sqrt(A)*alpha;
+      const b0 =    A*((A+1) + (A-1)*cosw0 + beta);
+      const b1 = -2*A*((A-1) + (A+1)*cosw0);
+      const b2 =    A*((A+1) + (A-1)*cosw0 - beta);
+      const a0 =       (A+1) - (A-1)*cosw0 + beta;
+      const a1 =    2*((A-1) - (A+1)*cosw0);
+      const a2 =       (A+1) - (A-1)*cosw0 - beta;
+      return {b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0};
+    }
+
+    function lowpass(Fs, f0, Q){
+      const w0 = 2*Math.PI*(f0/Fs);
+      const cosw0 = Math.cos(w0), sinw0 = Math.sin(w0);
+      const alpha = sinw0/(2*Q);
+      const b0 = (1 - cosw0)/2;
+      const b1 = 1 - cosw0;
+      const b2 = (1 - cosw0)/2;
+      const a0 = 1 + alpha;
+      const a1 = -2*cosw0;
+      const a2 = 1 - alpha;
+      return {b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0};
+    }
+
+    function highpass(Fs, f0, Q){
+      const w0 = 2*Math.PI*(f0/Fs);
+      const cosw0 = Math.cos(w0), sinw0 = Math.sin(w0);
+      const alpha = sinw0/(2*Q);
+      const b0 = (1 + cosw0)/2;
+      const b1 = -(1 + cosw0);
+      const b2 = (1 + cosw0)/2;
+      const a0 = 1 + alpha;
+      const a1 = -2*cosw0;
+      const a2 = 1 - alpha;
+      return {b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0};
+    }
+
+    function biquadH(coef, w){
+      const z1 = expNegJ(w), z2 = expNegJ(2*w);
+      const num = cadd(cadd(c(coef.b0,0), cmul(c(coef.b1,0), z1)), cmul(c(coef.b2,0), z2));
+      const den = cadd(cadd(c(1,0),       cmul(c(coef.a1,0), z1)), cmul(c(coef.a2,0), z2));
+      return cdiv(num, den);
+    }
+
+    function unwrapPhase(ph){
+      const out = new Array(ph.length);
+      out[0] = ph[0];
+      let offset = 0;
+      for(let i=1;i<ph.length;i++){
+        const dp = ph[i] - ph[i-1];
+        if(dp > Math.PI) offset -= 2*Math.PI;
+        else if(dp < -Math.PI) offset += 2*Math.PI;
+        out[i] = ph[i] + offset;
+      }
+      return out;
+    }
+
+    function groupDelayMs(phiUnwrapped, wArr, Fs){
+      const n = phiUnwrapped.length;
+      const tauSamp = new Array(n);
+      for(let i=0;i<n;i++){
+        let dphi, dw;
+        if(i===0){ dphi = phiUnwrapped[1]-phiUnwrapped[0]; dw = wArr[1]-wArr[0]; }
+        else if(i===n-1){ dphi = phiUnwrapped[n-1]-phiUnwrapped[n-2]; dw = wArr[n-1]-wArr[n-2]; }
+        else { dphi = phiUnwrapped[i+1]-phiUnwrapped[i-1]; dw = wArr[i+1]-wArr[i-1]; }
+        tauSamp[i] = -dphi/dw;
+      }
+      return tauSamp.map(s => (s/Fs)*1000);
+    }
+
+    function logspace(fMin, fMax, points){
+      const out = [];
+      const a = Math.log10(fMin), b = Math.log10(fMax);
+      for(let i=0;i<points;i++){
+        const t = i/(points-1);
+        out.push(Math.pow(10, a + (b-a)*t));
+      }
+      return out;
+    }
+
+    function updateEnableStates(){
+      const lowIsFilter = (ui.lowType.value === 'hpf');
+      ui.lowG.disabled = lowIsFilter;
+      ui.lowGainRow.classList.toggle('disabled', lowIsFilter);
+
+      const highIsFilter = (ui.highType.value === 'lpf');
+      ui.highG.disabled = highIsFilter;
+      ui.highGainRow.classList.toggle('disabled', highIsFilter);
+    }
+
+    function getBands(Fs){
+      const lowF0  = sliderToHz(ui.lowF,  Fs);
+      const lmF0   = sliderToHz(ui.lmF,   Fs);
+      const hmF0   = sliderToHz(ui.hmF,   Fs);
+      const highF0 = sliderToHz(ui.highF, Fs);
+
+      ui.lowFv.textContent  = Math.round(lowF0).toString();
+      ui.lmFv.textContent   = Math.round(lmF0).toString();
+      ui.hmFv.textContent   = Math.round(hmF0).toString();
+      ui.highFv.textContent = Math.round(highF0).toString();
+
+      ui.lowGv.textContent  = (+ui.lowG.value).toFixed(1);
+      ui.lowQv.textContent  = (+ui.lowQ.value).toFixed(2);
+
+      ui.lmGv.textContent   = (+ui.lmG.value).toFixed(1);
+      ui.lmQv.textContent   = (+ui.lmQ.value).toFixed(1);
+
+      ui.hmGv.textContent   = (+ui.hmG.value).toFixed(1);
+      ui.hmQv.textContent   = (+ui.hmQ.value).toFixed(1);
+
+      ui.highGv.textContent = (+ui.highG.value).toFixed(1);
+      ui.highQv.textContent = (+ui.highQ.value).toFixed(2);
+
+      const low  = { name:'Low',      bypass:ui.lowByp.checked,  type:ui.lowType.value,  f0:lowF0,  g:+ui.lowG.value,  q:+ui.lowQ.value };
+      const lm   = { name:'Low-Mid',  bypass:ui.lmByp.checked,   type:'peaking',         f0:lmF0,   g:+ui.lmG.value,   q:+ui.lmQ.value };
+      const hm   = { name:'High-Mid', bypass:ui.hmByp.checked,   type:'peaking',         f0:hmF0,   g:+ui.hmG.value,   q:+ui.hmQ.value };
+      const high = { name:'High',     bypass:ui.highByp.checked, type:ui.highType.value, f0:highF0, g:+ui.highG.value, q:+ui.highQ.value };
+
+      function mk(b){
+        if(b.bypass) return null;
+        switch(b.type){
+          case 'peaking':   return peaking(Fs, b.f0, b.q, b.g);
+          case 'lowshelf':  return lowshelf(Fs, b.f0, b.q, b.g);
+          case 'highshelf': return highshelf(Fs, b.f0, b.q, b.g);
+          case 'lpf':       return lowpass(Fs, b.f0, b.q);
+          case 'hpf':       return highpass(Fs, b.f0, b.q);
+          default:          return null;
+        }
+      }
+
+      return [
+        {...low,  coef: mk(low)},
+        {...lm,   coef: mk(lm)},
+        {...hm,   coef: mk(hm)},
+        {...high, coef: mk(high)}
+      ];
+    }
+
+    function compute(){
+      const Fs = +ui.fs.value;
+      const fMin = 20;
+      const fMax = Math.min(20000, (Fs/2) * 0.98);
+      const N = 520;
+
+      const freqs = logspace(fMin, fMax, N);
+      const wArr  = freqs.map(f => 2*Math.PI*(f/Fs));
+      const bands = getBands(Fs);
+
+      const magDb    = new Array(N).fill(0);
+      const phaseRad = new Array(N).fill(0);
+      const perBandMag = bands.map(() => new Array(N).fill(0));
+
+      for(let i=0;i<N;i++){
+        const w = wArr[i];
+        let Ht = c(1,0);
+
+        bands.forEach((b, bi) => {
+          if(!b.coef) return;
+          const Hb = biquadH(b.coef, w);
+          Ht = cmul(Ht, Hb);
+          perBandMag[bi][i] = db(cabs(Hb));
+        });
+
+        magDb[i] = db(cabs(Ht));
+        phaseRad[i] = carg(Ht);
+      }
+
+      const phaseDegWrap = phaseRad.map(r => wrapDeg(r * 180/Math.PI));
+      const phUn = unwrapPhase(phaseRad);
+      const gdMsRaw = groupDelayMs(phUn, wArr, Fs);
+
+      const magPts = freqs.map((f,i)=>({x:f, y:magDb[i]}));
+      const phPts  = freqs.map((f,i)=>({x:f, y:phaseDegWrap[i]}));
+      const gdPts  = freqs.map((f,i)=>({x:f, y:Math.min(10, Math.max(0, gdMsRaw[i]))}));
+      const perBandPts = perBandMag.map(arr => freqs.map((f,i)=>({x:f, y:arr[i]})));
+
+      return {fMax, magPts, phPts, gdPts, perBandPts, bands};
+    }
+
+    function makeChart(canvasId, yTitle, yMin, yMax){
+      const ctx = $(canvasId);
+      return new Chart(ctx, {
+        type: 'scatter',
+        data: { datasets: [] },
+        options: {
+          animation: false,
+          parsing: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              type: 'logarithmic',
+              title: {display:true, text:'周波数 (Hz)'},
+              min: 20,
+              max: 20000,
+              ticks: {
+                callback: (v) => {
+                  const val = Number(v);
+                  const keep = [20,50,100,200,500,1000,2000,5000,10000,20000];
+                  if(keep.includes(val)) return val>=1000 ? (val/1000)+'k' : String(val);
+                  return '';
+                }
+              },
+              grid: { color: COL.light }
+            },
+            y: {
+              title: {display:true, text:yTitle},
+              min: yMin,
+              max: yMax,
+              grid: { color: COL.light }
+            }
+          },
+          plugins: {
+            legend: { position:'top' },
+            tooltip: {
+              callbacks: {
+                title: (items) => `f = ${items[0].parsed.x.toFixed(1)} Hz`
+              }
+            }
+          }
+        }
+      });
+    }
+
+    const chMag = makeChart('mag', 'ゲイン (dB)', -18, +18);
+    const chPh  = makeChart('ph',  '位相 (deg) ※wrap', -180, +180);
+    const chGd  = makeChart('gd',  '群遅延 (ms)', 0, 10);
+
+    function update(){
+      updateEnableStates();
+      const {fMax, magPts, phPts, gdPts, perBandPts, bands} = compute();
+
+      [chMag, chPh, chGd].forEach(ch => ch.options.scales.x.max = fMax);
+
+      const dsMag = [{
+        label: 'Total Magnitude (dB)',
+        data: magPts,
+        showLine: true,
+        pointRadius: 0,
+        borderWidth: 2,
+        borderColor: COL.green
+      }];
+
+      if(ui.showBands.checked){
+        const bandColors = [COL.sky, COL.purple, COL.gray, COL.black];
+        bands.forEach((b,i) => {
+          if(!b.coef) return;
+          dsMag.push({
+            label: `${b.name} (${b.type})`,
+            data: perBandPts[i],
+            showLine: true,
+            pointRadius: 0,
+            borderWidth: 1.5,
+            borderColor: bandColors[i % bandColors.length],
+            borderDash: [6,4],
+          });
+        });
+      }
+      chMag.data.datasets = dsMag;
+
+      chPh.data.datasets = [{
+        label: 'Phase (deg, wrapped ±180)',
+        data: phPts,
+        showLine: true,
+        pointRadius: 0,
+        borderWidth: 2,
+        borderColor: COL.blue
+      }];
+
+      chGd.data.datasets = [{
+        label: 'Group Delay (ms, 0–10 clamped)',
+        data: gdPts,
+        showLine: true,
+        pointRadius: 0,
+        borderWidth: 2,
+        borderColor: COL.vermil,
+        borderDash: [10,6]
+      }];
+
+      chMag.options.plugins.tooltip.callbacks.label = (it)=> `Total: ${it.parsed.y.toFixed(3)} dB`;
+      chPh.options.plugins.tooltip.callbacks.label  = (it)=> `Phase: ${it.parsed.y.toFixed(3)} deg`;
+      chGd.options.plugins.tooltip.callbacks.label  = (it)=> `GD: ${it.parsed.y.toFixed(3)} ms`;
+
+      chMag.update();
+      chPh.update();
+      chGd.update();
+    }
+
+    const inputs = [
+      ui.fs, ui.showBands,
+      ui.lowType, ui.lowByp, ui.lowF, ui.lowG, ui.lowQ,
+      ui.lmByp, ui.lmF, ui.lmG, ui.lmQ,
+      ui.hmByp, ui.hmF, ui.hmG, ui.hmQ,
+      ui.highType, ui.highByp, ui.highF, ui.highG, ui.highQ
+    ];
+    inputs.forEach(el => el.addEventListener('input', update));
+    inputs.forEach(el => el.addEventListener('change', update));
+
+    ui.fs.addEventListener('change', () => { resyncFreqSlidersOnFsChange(); update(); });
+    ui.fs.addEventListener('input',  () => { resyncFreqSlidersOnFsChange(); update(); });
+
+    initFreqSliders();
+    update();
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>DSP Chain Visualizer</title>
+<style>
+body {
+  margin:0;
+  font-family:sans-serif;
+  background:#111;
+  color:#ddd;
+}
+.container {
+  display:grid;
+  grid-template-rows:80px 1fr 200px;
+  height:100vh;
+}
+.header {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px;
+  background:#222;
+}
+.chain {
+  display:flex;
+  gap:20px;
+}
+.node {
+  padding:8px 12px;
+  border:1px solid #555;
+  border-radius:8px;
+  cursor:pointer;
+}
+.node.active {
+  border-color:#0ff;
+}
+.main {
+  display:grid;
+  grid-template-columns:1fr 300px;
+}
+canvas {
+  width:100%;
+  height:100%;
+}
+.sidebar {
+  padding:10px;
+  background:#181818;
+}
+.footer {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+}
+.wave {
+  border-top:1px solid #333;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+  <!-- Chain -->
+  <div class="header">
+    <div class="chain" id="chain"></div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <canvas id="freq"></canvas>
+
+    <div class="sidebar">
+      <h3>Params</h3>
+      <label>Freq</label>
+      <input type="range" id="freqKnob" min="50" max="10000" value="1000">
+      <label>Gain</label>
+      <input type="range" id="gainKnob" min="-18" max="18" value="0">
+      <label>Q</label>
+      <input type="range" id="qKnob" min="0.1" max="10" step="0.1" value="1">
+    </div>
+  </div>
+
+  <!-- Wave -->
+  <div class="footer">
+    <canvas class="wave" id="w0"></canvas>
+    <canvas class="wave" id="w1"></canvas>
+    <canvas class="wave" id="w2"></canvas>
+    <canvas class="wave" id="w3"></canvas>
+  </div>
+
+</div>
+
+<script>
+// ===== DSP CORE =====
+class Biquad {
+  constructor(fs) {
+    this.fs = fs;
+    this.z1 = this.z2 = 0;
+    this.setPeq(1000,1,0);
+  }
+
+  setPeq(f,q,g){
+    const A = Math.pow(10,g/40);
+    const w = 2*Math.PI*f/this.fs;
+    const a = Math.sin(w)/(2*q);
+
+    const b0 = 1 + a*A;
+    const b1 = -2*Math.cos(w);
+    const b2 = 1 - a*A;
+    const a0 = 1 + a/A;
+    const a1 = -2*Math.cos(w);
+    const a2 = 1 - a/A;
+
+    this.b0=b0/a0; this.b1=b1/a0; this.b2=b2/a0;
+    this.a1=a1/a0; this.a2=a2/a0;
+  }
+
+  process(x){
+    const y = this.b0*x + this.z1;
+    this.z1 = this.b1*x - this.a1*y + this.z2;
+    this.z2 = this.b2*x - this.a2*y;
+    return y;
+  }
+
+  getResponse(freqs){
+    return freqs.map(f=>{
+      const w = 2*Math.PI*f/this.fs;
+      const jw = {r:Math.cos(w), i:-Math.sin(w)};
+      let num = {r:this.b0 + this.b1*jw.r + this.b2*jw.r*jw.r, i:0};
+      let den = {r:1 + this.a1*jw.r + this.a2*jw.r*jw.r, i:0};
+      let mag = Math.abs(num.r/den.r);
+      let phase = Math.atan2(num.i, num.r);
+      return {mag, phase};
+    });
+  }
+}
+
+// ===== Chain =====
+class Chain {
+  constructor(nodes){
+    this.nodes = nodes;
+  }
+
+  process(signal){
+    let taps = [signal];
+    let x = signal.slice();
+
+    for(let n of this.nodes){
+      x = x.map(v=>n.process(v));
+      taps.push(x.slice());
+    }
+    return taps;
+  }
+}
+
+// ===== INIT =====
+const fs = 48000;
+const eq = new Biquad(fs);
+const chain = new Chain([eq]);
+
+let activeNode = 0;
+
+// ===== UI =====
+const chainDiv = document.getElementById("chain");
+["Input","EQ","Output"].forEach((n,i)=>{
+  const d=document.createElement("div");
+  d.className="node";
+  d.innerText=n;
+  d.onclick=()=>{activeNode=i;updateChainUI();}
+  chainDiv.appendChild(d);
+});
+
+function updateChainUI(){
+  [...chainDiv.children].forEach((c,i)=>{
+    c.classList.toggle("active",i===activeNode);
+  });
+}
+updateChainUI();
+
+// ===== PARAM =====
+freqKnob.oninput = ()=>{
+  eq.setPeq(freqKnob.value, qKnob.value, gainKnob.value);
+};
+gainKnob.oninput = freqKnob.oninput;
+qKnob.oninput = freqKnob.oninput;
+
+// ===== DRAW =====
+const freqCanvas = document.getElementById("freq");
+const fctx = freqCanvas.getContext("2d");
+
+function drawFreq(){
+  freqCanvas.width = freqCanvas.clientWidth;
+  freqCanvas.height = freqCanvas.clientHeight;
+  fctx.clearRect(0,0,freqCanvas.width,freqCanvas.height);
+
+  let freqs = [];
+  for(let i=0;i<300;i++){
+    let f = 20 * Math.pow(1000, i/300);
+    freqs.push(f);
+  }
+
+  const res = eq.getResponse(freqs);
+
+  fctx.beginPath();
+  for(let i=0;i<res.length;i++){
+    let x = i/res.length * freqCanvas.width;
+    let y = freqCanvas.height/2 - Math.log10(res[i].mag)*100;
+    if(i==0) fctx.moveTo(x,y); else fctx.lineTo(x,y);
+  }
+  fctx.strokeStyle="#0ff";
+  fctx.stroke();
+
+  // phase
+  fctx.beginPath();
+  for(let i=0;i<res.length;i++){
+    let x = i/res.length * freqCanvas.width;
+    let y = freqCanvas.height/2 - res[i].phase * 50;
+    if(i==0) fctx.moveTo(x,y); else fctx.lineTo(x,y);
+  }
+  fctx.strokeStyle="#0f0";
+  fctx.stroke();
+}
+
+// ===== WAVE =====
+const waves = ["w0","w1","w2","w3"].map(id=>document.getElementById(id));
+
+function drawWaves(){
+  let input = Array.from({length:256}, (_,i)=>Math.sin(i*0.1));
+  let taps = chain.process(input);
+
+  taps.forEach((sig,idx)=>{
+    const c = waves[idx];
+    const ctx = c.getContext("2d");
+
+    c.width = c.clientWidth;
+    c.height = c.clientHeight;
+
+    ctx.clearRect(0,0,c.width,c.height);
+    ctx.beginPath();
+
+    sig.forEach((v,i)=>{
+      let x = i/sig.length*c.width;
+      let y = c.height/2 - v*50;
+      if(i==0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+
+    ctx.strokeStyle="#fff";
+    ctx.stroke();
+  });
+}
+
+// ===== LOOP =====
+function loop(){
+  drawFreq();
+  drawWaves();
+  requestAnimationFrame(loop);
+}
+loop();
+
+</script>
+</body>
+</html>

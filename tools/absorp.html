@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>空気中の減衰 可視化</title>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#121a33; --muted:#98a2b3; --text:#e6e9f2;
+      --accent:#7aa2ff; --accent2:#ffb86b; --accent3:#a78bfa; --accent4:#4dd4ac;
+      --grid:rgba(255,255,255,.08);
+      --ok:#69db7c; --bad:#ff6b6b; --warn:#ffd166;
+    }
+    html,body{height:100%;background:linear-gradient(180deg,#070b17,#0b1020);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans JP","Hiragino Sans","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;margin:0;}
+    *{box-sizing:border-box;}
+    .wrap{max-width:1220px;margin:0 auto;padding:18px;}
+    .title{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;}
+    .title h1{font-size:20px;margin:0;}
+    .grid{display:grid;gap:14px;grid-template-columns:400px 1fr;}
+    @media(max-width:980px){.grid{grid-template-columns:1fr;}}
+    .card{background:rgba(18,26,51,.92);border:1px solid rgba(255,255,255,.08);border-radius:18px;box-shadow:0 12px 40px rgba(0,0,0,.35);overflow:hidden;}
+    .card .hd{padding:14px 14px 10px;border-bottom:1px solid rgba(255,255,255,.08);}
+    .card .hd b{font-size:14px;}
+    .card .bd{padding:14px;}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+    .row.top{justify-content:space-between;}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;}
+    input[type="range"]{width:100%;}
+    input[type="number"],select{background:#0e1530;border:1px solid rgba(255,255,255,.12);color:var(--text);border-radius:10px;padding:8px 10px;outline:none;width:100%;}
+    .btn{border:1px solid rgba(255,255,255,.14);background:#0e1530;color:var(--text);padding:9px 12px;border-radius:12px;cursor:pointer;font-weight:600;}
+    .btn.primary{background:linear-gradient(180deg,#2a4cff,#1933a9);border-color:rgba(122,162,255,.55);}
+    .btn:disabled{opacity:.5;cursor:not-allowed;}
+    .pill{font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.12);color:var(--muted);}
+    .pill.ok{color:var(--ok);border-color:rgba(105,219,124,.35);}
+    .pill.bad{color:var(--bad);border-color:rgba(255,107,107,.35);}
+    .kv{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:start;font-size:13px;}
+    .kv .k{color:var(--muted);}
+    .kv .v{font-variant-numeric:tabular-nums;text-align:right;max-width:250px;line-height:1.45;}
+    canvas{width:100%;height:auto;display:block;background:linear-gradient(180deg,#081027,#070b17);border-radius:14px;border:1px solid rgba(255,255,255,.10);}
+    .hint{font-size:12px;color:var(--muted);line-height:1.65;}
+    .small{font-size:11px;color:var(--muted);}
+    .sep{height:1px;background:rgba(255,255,255,.08);margin:12px 0;}
+    .legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:10px;}
+    .sw{display:inline-flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);}
+    .dot{width:10px;height:10px;border-radius:999px;}
+    .dot.in{background:var(--accent);}
+    .dot.out{background:var(--accent2);}
+    .dot.att{background:var(--accent3);}
+    .lineSample{width:24px;height:0;border-top:3px solid #fff;display:inline-block;}
+    .lineSample.theory{border-top-color:var(--accent4);border-top-style:dashed;}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-word;}
+    .badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid rgba(255,255,255,.12);color:var(--muted);margin-left:8px;vertical-align:middle;}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title"><h1>空気中の減衰 可視化</h1></div>
+  <div class="grid" style="margin-top:14px;">
+    <div class="card">
+      <div class="hd"><b>操作</b></div>
+      <div class="bd">
+        <div class="row top">
+          <div class="row">
+            <button id="btnStart" class="btn primary">Start</button>
+            <button id="btnStop" class="btn" disabled>Stop</button>
+          </div>
+          <span id="statusPill" class="pill bad">Stopped</span>
+        </div>
+        <div class="sep"></div>
+        <div class="row" style="gap:12px;">
+          <div style="flex:1;min-width:170px;">
+            <label>信号タイプ</label>
+            <select id="sigType">
+              <option value="pink" selected>Pink noise</option>
+              <option value="white">White noise</option>
+              <option value="sine">Sine</option>
+            </select>
+            <div class="small">Pink: 実測風 / White: 理論確認 / Sine: 単一周波数観察</div>
+          </div>
+          <div style="flex:1;min-width:170px;">
+            <label>音量（出力）</label>
+            <input id="vol" type="range" min="0" max="1" step="0.001" value="0.12">
+          </div>
+        </div>
+        <div id="sineBox" style="margin-top:12px;display:none;">
+          <label>正弦波 周波数 [Hz]</label>
+          <div class="row">
+            <input id="sineHz" type="number" min="20" max="20000" step="1" value="1000" style="width:140px;">
+            <input id="sineHzSlider" type="range" min="20" max="20000" step="1" value="1000" style="flex:1;">
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div class="row" style="gap:12px;">
+          <div style="flex:1;min-width:170px;">
+            <label>Filter mode</label>
+            <select id="filterMode">
+              <option value="geq" selected>GEQ（1/3oct Peaking）</option>
+              <option value="shelflpf">Shelf + LPF</option>
+            </select>
+          </div>
+          <div style="flex:1;min-width:170px;">
+            <label>周波数軸</label>
+            <select id="xScale">
+              <option value="log" selected>Log（推奨）</option>
+              <option value="lin">Linear</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label>距離 [m]（1m基準）</label>
+          <div class="row">
+            <input id="dist" type="number" min="1" max="500" step="1" value="30" style="width:120px;">
+            <input id="distSlider" type="range" min="1" max="500" step="1" value="30" style="flex:1;">
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label>空気吸収係数 α(1kHz) [dB/m]</label>
+          <div class="row">
+            <input id="alpha1k" type="number" min="0" max="0.1" step="0.0001" value="0.0010" style="width:120px;">
+            <input id="alpha1kSlider" type="range" min="0" max="0.02" step="0.0001" value="0.0010" style="flex:1;">
+          </div>
+          <div class="small">この値は「1kHzでの 1m あたりの減衰量」。教育用の近似モデルとして使用します。</div>
+        </div>
+        <div style="margin-top:12px;">
+          <label>空気吸収モデル</label>
+          <select id="alphaModel">
+            <option value="light">軽め（f¹）</option>
+            <option value="mid" selected>標準（f^1.5）</option>
+            <option value="strong">強め（f²）</option>
+          </select>
+          <div class="small">高域減衰の強さ。標準は教育向けの中庸設定です。</div>
+        </div>
+        <div style="margin-top:12px;">
+          <label>FFTサイズ</label>
+          <select id="fftSize">
+            <option>1024</option><option>2048</option>
+            <option selected>4096</option><option>8192</option>
+          </select>
+        </div>
+        <div style="margin-top:12px;">
+          <label>平滑化（smoothingTimeConstant）</label>
+          <input id="smooth" type="range" min="0" max="0.98" step="0.01" value="0.70">
+        </div>
+        <div class="sep"></div>
+        <div class="kv">
+          <div class="k">現在のフィルタ構成</div><div class="v" id="modeName">-</div>
+          <div class="k">近似パラメータ</div><div class="v mono" id="procInfo">-</div>
+          <div class="k">距離減衰（20log10 r）</div><div class="v" id="geoLoss">-</div>
+          <div class="k">フィルタ数 / ノード数</div><div class="v" id="bandCount">-</div>
+          <div class="k">カーソル周波数</div><div class="v" id="cursorHz">-</div>
+          <div class="k">距離減衰（カーソル）</div><div class="v" id="geoAtCursor">-</div>
+          <div class="k">空気吸収（理論 / カーソル）</div><div class="v" id="airAtCursor">-</div>
+          <div class="k">総減衰（Geo+Air）</div><div class="v" id="lossAtCursor">-</div>
+          <div class="k">入力レベル（カーソル）</div><div class="v" id="inAtCursor">-</div>
+          <div class="k">出力レベル（カーソル）</div><div class="v" id="outAtCursor">-</div>
+          <div class="k">実測Att（入力−出力）</div><div class="v" id="attAtCursor">-</div>
+        </div>
+        <div class="sep"></div>
+        <div class="hint">
+          ・理論点線は <b>空気吸収のみ（Air）</b> を表示します。距離減衰（Geo）は別表示です。<br>
+          ・Shelf+LPF は <b>High-shelf ×2 + Low-pass</b> により、「遠くなるほど高域が丸くなる」聴感を簡易再現します。<br>
+          ・停止中でも理論点線とクロスヘア確認が可能です。
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="hd">
+        <b>FFTスペクトラム（入力 / 出力 / Att実測 / 理論Air点線）</b>
+        <span class="badge" id="graphBadge">GEQ</span>
+      </div>
+      <div class="bd">
+        <canvas id="cv" width="1280" height="560"></canvas>
+        <div class="legend">
+          <span class="sw"><span class="dot in"></span>入力（Source直後）</span>
+          <span class="sw"><span class="dot out"></span>出力（フィルタ後）</span>
+          <span class="sw"><span class="dot att"></span>Att実測（入力−出力）</span>
+          <span class="sw"><span class="lineSample theory"></span>理論Air減衰（点線）</span>
+        </div>
+        <div class="hint" style="margin-top:10px;">
+          ※ 紫実線 = FFT差分の実測Att、緑点線 = 理論Air減衰。<br>
+          ※ GEQ は理論追従寄り、Shelf+LPF は聴感寄りの簡易モデルです。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  // --- UI refs ---
+  const btnStart=$("#btnStart"), btnStop=$("#btnStop"), statusPill=$("#statusPill");
+  const sigType=$("#sigType"), vol=$("#vol"), sineBox=$("#sineBox");
+  const sineHz=$("#sineHz"), sineHzSlider=$("#sineHzSlider");
+  const filterMode=$("#filterMode"), alphaModel=$("#alphaModel"), xScale=$("#xScale");
+  const dist=$("#dist"), distSlider=$("#distSlider");
+  const alpha1k=$("#alpha1k"), alpha1kSlider=$("#alpha1kSlider");
+  const fftSizeSel=$("#fftSize"), smooth=$("#smooth");
+  const modeNameEl=$("#modeName"), procInfoEl=$("#procInfo");
+  const geoLossEl=$("#geoLoss"), bandCountEl=$("#bandCount"), graphBadge=$("#graphBadge");
+  const cursorHzEl=$("#cursorHz"), geoAtCursorEl=$("#geoAtCursor");
+  const airAtCursorEl=$("#airAtCursor"), lossAtCursorEl=$("#lossAtCursor");
+  const inAtCursorEl=$("#inAtCursor"), outAtCursorEl=$("#outAtCursor"), attAtCursorEl=$("#attAtCursor");
+  const canvas=$("#cv"), ctx=canvas.getContext("2d");
+
+  // --- CSS colour cache (avoid per-frame getComputedStyle) ---
+  const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const COLOR = {
+    accent : cssVar("--accent")  || "#7aa2ff",
+    accent2: cssVar("--accent2") || "#ffb86b",
+    accent3: cssVar("--accent3") || "#a78bfa",
+    accent4: cssVar("--accent4") || "#4dd4ac",
+    grid   : cssVar("--grid")    || "rgba(255,255,255,.08)",
+  };
+
+  // --- Audio state ---
+  let audioCtx=null, srcNode=null, srcGain=null;
+  let analyserIn=null, analyserOut=null, masterGain=null;
+  let processingNodes=[], geqFilters=[], isRunning=false;
+
+  // --- FFT state ---
+  let fftSize=parseInt(fftSizeSel.value,10), bins=fftSize>>1;
+  let inData=new Float32Array(bins), outData=new Float32Array(bins);
+
+  // --- Cursor state ---
+  let cursorX=null, cursorY=null, cursorHz=1000;
+
+  // --- Draw-loop throttle ---
+  let rafId=0, lastFrameTs=0;
+  const FPS_INTERVAL=1000/30;
+
+  // --- Math ---
+  const clamp  = (v,a,b) => Math.max(a,Math.min(b,v));
+  const lerp   = (a,b,t) => a+(b-a)*t;
+  const log10  = x => Math.log(x)*Math.LOG10E;
+  const dbToLin= db => Math.pow(10,db/20);
+
+  const fMin=20, fMax=20000;
+  const LOG_FMIN=log10(fMin), LOG_FMAX=log10(fMax), LOG_FRANGE=LOG_FMAX-LOG_FMIN;
+
+  const thirdOctCenters=[
+    20,25,31.5,40,50,63,80,100,125,160,200,250,315,400,500,630,800,
+    1000,1250,1600,2000,2500,3150,4000,5000,6300,8000,10000,12500,16000,20000
+  ];
+  const Q_THIRD_OCT=4.318;
+
+  // --- Frequency <-> pixel ---
+  function xFromHz(hz,mode,W){
+    const t=(mode==="lin")?(hz-fMin)/(fMax-fMin):(log10(hz)-LOG_FMIN)/LOG_FRANGE;
+    return clamp(t,0,1)*W;
+  }
+  function hzFromX(x,mode,W){
+    const t=clamp(x/W,0,1);
+    return (mode==="lin")?lerp(fMin,fMax,t):Math.pow(10,lerp(LOG_FMIN,LOG_FMAX,t));
+  }
+
+  // --- dB <-> pixel ---
+  const DB_TOP=-20, DB_BOT=-120, DB_RANGE=DB_TOP-DB_BOT;
+  const yFromDb=(dB,H)=>clamp((DB_TOP-dB)/DB_RANGE,0,1)*H;
+
+  // --- Acoustics ---
+  const geometricLossDb=d=>20*log10(Math.max(1e-9,d));
+
+  const ALPHA_EXP={light:1.0,mid:1.5,strong:2.0};
+  const getAlphaExponent=()=>ALPHA_EXP[alphaModel.value]??1.5;
+
+  const airAlphaDbPerM=(f,a1k)=>a1k*Math.pow(Math.max(f,1)/1000,getAlphaExponent());
+  const airLossDb=(d,f,a1k)=>airAlphaDbPerM(f,a1k)*d;
+
+  // --- Shelf+LPF params ---
+  function computeShelfLpfParams(d,a1k){
+    const hs1Freq=2000, hs2Freq=8000;
+    const air2k=airLossDb(d,hs1Freq,a1k), air8k=airLossDb(d,hs2Freq,a1k), air10k=airLossDb(d,10000,a1k);
+    return{
+      hs1Freq,hs2Freq,
+      hs1Gain:clamp(-0.85*air2k,-18,0),
+      hs2Gain:clamp(-0.65*air8k,-30,0),
+      lpfCutoff:clamp(18000*Math.exp(-air10k/18),1500,20000),
+      lpfQ:0.707,
+      air2k,air8k,air10k
+    };
+  }
+
+  // --- UI info ---
+  const getModeLabel=m=>m==="shelflpf"?"Shelf + LPF（簡易・聴感寄り）":"GEQ（1/3oct Peaking）";
+
+  function updateInfoUI(){
+    const mode=filterMode.value, d=parseFloat(dist.value), a1k=parseFloat(alpha1k.value);
+    const geo=geometricLossDb(d);
+    modeNameEl.textContent=getModeLabel(mode);
+    graphBadge.textContent=(mode==="shelflpf")?"Shelf+LPF":"GEQ";
+    geoLossEl.textContent=`${geo.toFixed(2)} dB`;
+    if(mode==="geq"){
+      bandCountEl.textContent=`${thirdOctCenters.length} bands`;
+      procInfoEl.textContent=`31-band 1/3oct / 例: 4k=${airLossDb(d,4000,a1k).toFixed(1)} dB, 10k=${airLossDb(d,10000,a1k).toFixed(1)} dB`;
+    }else{
+      const p=computeShelfLpfParams(d,a1k);
+      bandCountEl.textContent="3 nodes";
+      procInfoEl.textContent=`HS1 ${Math.round(p.hs1Freq)}Hz ${p.hs1Gain.toFixed(1)}dB / HS2 ${Math.round(p.hs2Freq)}Hz ${p.hs2Gain.toFixed(1)}dB / LPF ${Math.round(p.lpfCutoff)}Hz`;
+    }
+  }
+
+  // --- Noise ---
+  function makeNoiseBuffer(type,seconds=2.0){
+    const sr=audioCtx.sampleRate, len=Math.floor(seconds*sr);
+    const buf=audioCtx.createBuffer(1,len,sr), ch=buf.getChannelData(0);
+    if(type==="white"){
+      for(let i=0;i<len;i++) ch[i]=Math.random()*2-1;
+    }else{
+      let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+      for(let i=0;i<len;i++){
+        const w=Math.random()*2-1;
+        b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
+        b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
+        b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+        ch[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11;
+        b6=w*0.115926;
+      }
+    }
+    return buf;
+  }
+
+  // --- Source ---
+  function stopAndDisconnectSource(){
+    if(!srcNode) return;
+    try{srcNode.stop?.();}catch{}
+    try{srcNode.disconnect();}catch{}
+    srcNode=null;
+  }
+  function rebuildSource(){
+    if(!audioCtx) return;
+    stopAndDisconnectSource();
+    if(sigType.value==="sine"){
+      const osc=audioCtx.createOscillator();
+      osc.type="sine";
+      osc.frequency.value=clamp(parseFloat(sineHz.value)||1000,20,20000);
+      osc.connect(srcGain); osc.start(); srcNode=osc;
+    }else{
+      const bs=audioCtx.createBufferSource();
+      bs.buffer=makeNoiseBuffer(sigType.value,2.0);
+      bs.loop=true; bs.connect(srcGain); bs.start(); srcNode=bs;
+    }
+  }
+
+  // --- FFT ---
+  function setFFT(){
+    fftSize=parseInt(fftSizeSel.value,10); bins=fftSize>>1;
+    inData=new Float32Array(bins); outData=new Float32Array(bins);
+    if(analyserIn)  analyserIn.fftSize=fftSize;
+    if(analyserOut) analyserOut.fftSize=fftSize;
+  }
+
+  // --- Processing chain ---
+  function disconnectProcessingChain(){
+    processingNodes.forEach(n=>{try{n.disconnect();}catch{}});
+    processingNodes=[]; geqFilters=[];
+    try{analyserIn?.disconnect();}catch{}
+  }
+  function buildProcessingChain(){
+    if(!audioCtx||!analyserIn||!analyserOut) return;
+    disconnectProcessingChain();
+    // srcGain → analyserIn の接続を確実に確立
+    try{srcGain.connect(analyserIn);}catch{}
+    const d=parseFloat(dist.value), a1k=parseFloat(alpha1k.value);
+    let node=analyserIn;
+    if(filterMode.value==="geq"){
+      for(const fc of thirdOctCenters){
+        const f=audioCtx.createBiquadFilter();
+        f.type="peaking"; f.frequency.value=fc; f.Q.value=Q_THIRD_OCT;
+        f.gain.value=clamp(-airLossDb(d,fc,a1k),-60,0);
+        node.connect(f); node=f; processingNodes.push(f); geqFilters.push(f);
+      }
+    }else{
+      const p=computeShelfLpfParams(d,a1k);
+      const hs1=audioCtx.createBiquadFilter(); hs1.type="highshelf";
+      hs1.frequency.value=p.hs1Freq; hs1.gain.value=p.hs1Gain;
+      const hs2=audioCtx.createBiquadFilter(); hs2.type="highshelf";
+      hs2.frequency.value=p.hs2Freq; hs2.gain.value=p.hs2Gain;
+      const lpf=audioCtx.createBiquadFilter(); lpf.type="lowpass";
+      lpf.frequency.value=p.lpfCutoff; lpf.Q.value=p.lpfQ;
+      node.connect(hs1); hs1.connect(hs2); hs2.connect(lpf);
+      node=lpf; processingNodes.push(hs1,hs2,lpf);
+    }
+    node.connect(analyserOut);
+    updateInfoUI();
+  }
+  function updateProcessingParams(){
+    const d=parseFloat(dist.value), a1k=parseFloat(alpha1k.value);
+    updateInfoUI();
+    if(audioCtx&&masterGain)
+      masterGain.gain.value=dbToLin(-geometricLossDb(d))*parseFloat(vol.value)*0.7;
+    if(!audioCtx) return;
+    if(filterMode.value==="geq"){
+      for(let i=0;i<geqFilters.length;i++)
+        geqFilters[i].gain.value=clamp(-airLossDb(d,thirdOctCenters[i],a1k),-60,0);
+    }else{
+      const [hs1,hs2,lpf]=processingNodes;
+      if(hs1&&hs2&&lpf){
+        const p=computeShelfLpfParams(d,a1k);
+        hs1.frequency.value=p.hs1Freq; hs1.gain.value=p.hs1Gain;
+        hs2.frequency.value=p.hs2Freq; hs2.gain.value=p.hs2Gain;
+        lpf.frequency.value=p.lpfCutoff; lpf.Q.value=p.lpfQ;
+      }
+    }
+  }
+
+  // --- Audio init ---
+  async function ensureAudio(){
+    if(audioCtx) return;
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    srcGain=audioCtx.createGain(); srcGain.gain.value=0.3;
+    analyserIn=audioCtx.createAnalyser();
+    analyserOut=audioCtx.createAnalyser();
+    masterGain=audioCtx.createGain();
+    const sv=parseFloat(smooth.value);
+    for(const an of[analyserIn,analyserOut]){
+      an.minDecibels=-120; an.maxDecibels=-20; an.smoothingTimeConstant=sv;
+    }
+    setFFT();
+    analyserOut.connect(masterGain); masterGain.connect(audioCtx.destination);
+    srcGain.connect(analyserIn);
+    buildProcessingChain(); updateProcessingParams();
+  }
+  async function start(){
+    await ensureAudio();
+    if(audioCtx.state!=="running") await audioCtx.resume();
+    const sv=parseFloat(smooth.value);
+    setFFT();
+    analyserIn.smoothingTimeConstant=analyserOut.smoothingTimeConstant=sv;
+    buildProcessingChain();
+    rebuildSource();
+    updateProcessingParams();
+    isRunning=true; btnStart.disabled=true; btnStop.disabled=false;
+    statusPill.textContent="Running"; statusPill.classList.replace("bad","ok");
+    startDrawLoop();
+  }
+  function stop(){
+    isRunning=false; stopAndDisconnectSource(); audioCtx?.suspend();
+    if(rafId){cancelAnimationFrame(rafId);rafId=0;}
+    btnStart.disabled=false; btnStop.disabled=true;
+    statusPill.textContent="Stopped"; statusPill.classList.replace("ok","bad");
+    redraw();
+  }
+
+  // --- Drawing ---
+  function drawGrid(W,H){
+    ctx.save();
+    ctx.strokeStyle=COLOR.grid; ctx.lineWidth=1;
+    ctx.fillStyle="rgba(255,255,255,.45)"; ctx.font="14px system-ui,sans-serif";
+    for(let dB=-20;dB>=-120;dB-=10){
+      const y=yFromDb(dB,H);
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+      ctx.fillText(`${dB} dB`,8,y-4);
+    }
+    ctx.fillStyle="rgba(255,255,255,.35)";
+    for(const f of[20,50,100,200,500,1000,2000,5000,10000,20000]){
+      const x=xFromHz(f,xScale.value,W);
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+      ctx.fillText(f>=1000?`${f/1000}kHz`:`${f}Hz`,x+4,H-10);
+    }
+    ctx.restore();
+  }
+  function drawAttAxis(W,H){
+    ctx.save();
+    ctx.strokeStyle="rgba(255,255,255,.15)"; ctx.fillStyle="rgba(255,255,255,.45)";
+    ctx.font="11px system-ui,sans-serif"; ctx.textAlign="right";
+    for(let att=0;att<=60;att+=10){
+      const y=yFromDb(-att,H);
+      ctx.beginPath(); ctx.moveTo(W-18,y); ctx.lineTo(W,y); ctx.stroke();
+      ctx.fillText(`${att} dB`,W-22,y-2);
+    }
+    ctx.save(); ctx.translate(W-6,H*0.5); ctx.rotate(-Math.PI/2);
+    ctx.fillStyle="rgba(255,255,255,.35)"; ctx.textAlign="center";
+    ctx.fillText("Att 補助目盛",0,0); ctx.restore();
+    ctx.restore();
+  }
+  function drawCurve(data,color,W,H){
+    if(!data) return;
+    const sr=audioCtx.sampleRate;
+    ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.beginPath();
+    let started=false;
+    for(let i=1;i<data.length;i++){
+      const f=i*sr/fftSize;
+      if(f<fMin||f>fMax) continue;
+      const val=data[i]; if(!Number.isFinite(val)) continue;
+      const x=xFromHz(f,xScale.value,W), y=yFromDb(val,H);
+      if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);
+    }
+    ctx.stroke(); ctx.restore();
+  }
+  function drawAttCurve(inArr,outArr,W,H){
+    const sr=audioCtx.sampleRate;
+    ctx.save(); ctx.strokeStyle=COLOR.accent3; ctx.globalAlpha=0.95; ctx.lineWidth=2.2; ctx.beginPath();
+    let started=false;
+    for(let i=1;i<inArr.length;i++){
+      const f=i*sr/fftSize; if(f<fMin||f>fMax) continue;
+      const iv=inArr[i],ov=outArr[i];
+      if(!Number.isFinite(iv)||!Number.isFinite(ov)) continue;
+      const x=xFromHz(f,xScale.value,W), y=yFromDb(-Math.max(0,iv-ov),H);
+      if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);
+    }
+    ctx.stroke(); ctx.restore();
+  }
+  function drawTheoryAirCurve(W,H){
+    const d=parseFloat(dist.value), a1k=parseFloat(alpha1k.value);
+    const steps=Math.max(500,W>>1);
+    ctx.save(); ctx.strokeStyle=COLOR.accent4; ctx.setLineDash([8,6]);
+    ctx.lineWidth=2; ctx.globalAlpha=0.95; ctx.beginPath();
+    for(let i=0;i<=steps;i++){
+      const x=(i/steps)*W;
+      const y=yFromDb(-airLossDb(d,hzFromX(x,xScale.value,W),a1k),H);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle="rgba(77,212,172,.95)"; ctx.font="12px system-ui,sans-serif";
+    ctx.fillText("理論Air減衰（点線）",W-190,yFromDb(-6,H)-6);
+    ctx.restore();
+  }
+
+  const getNearestBinIndex=hz=>{
+    if(!audioCtx) return -1;
+    return clamp(Math.round(hz*fftSize/audioCtx.sampleRate),0,bins-1);
+  };
+
+  // Central cursor stats — eliminates duplicate geo/air calc between readout & crosshair
+  function getCursorStats(){
+    const d=parseFloat(dist.value), a1k=parseFloat(alpha1k.value);
+    const geo=geometricLossDb(d), air=airLossDb(d,cursorHz,a1k), total=geo+air;
+    let inV=NaN, outV=NaN, att=NaN;
+    if(audioCtx&&isRunning){
+      const idx=getNearestBinIndex(cursorHz);
+      inV=inData[idx]; outV=outData[idx];
+      if(Number.isFinite(inV)&&Number.isFinite(outV)) att=Math.max(0,inV-outV);
+      else inV=outV=NaN;
+    }
+    return{geo,air,total,inV,outV,att};
+  }
+
+  function updateCursorReadout(){
+    const{geo,air,total,inV,outV,att}=getCursorStats();
+    cursorHzEl.textContent=`${Math.round(cursorHz)} Hz`;
+    geoAtCursorEl.textContent=`${geo.toFixed(2)} dB`;
+    airAtCursorEl.textContent=`${air.toFixed(2)} dB`;
+    lossAtCursorEl.textContent=`${total.toFixed(2)} dB`;
+    if(Number.isFinite(inV)){
+      inAtCursorEl.textContent=`${inV.toFixed(1)} dB`;
+      outAtCursorEl.textContent=`${outV.toFixed(1)} dB`;
+      attAtCursorEl.textContent=`${att.toFixed(1)} dB`;
+    }else{
+      inAtCursorEl.textContent=outAtCursorEl.textContent=attAtCursorEl.textContent="-";
+    }
+  }
+
+  function drawCrosshair(W,H){
+    if(cursorX==null) return;
+    ctx.save();
+    ctx.strokeStyle="rgba(255,255,255,.35)"; ctx.setLineDash([6,6]);
+    ctx.beginPath(); ctx.moveTo(cursorX,0); ctx.lineTo(cursorX,H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,cursorY); ctx.lineTo(W,cursorY); ctx.stroke();
+    ctx.setLineDash([]);
+
+    const d=parseFloat(dist.value), a1k=parseFloat(alpha1k.value);
+    const geo=geometricLossDb(d), air=airLossDb(d,cursorHz,a1k), total=geo+air;
+    const hasLive=audioCtx&&isRunning;
+    const boxW=390, boxH=hasLive?130:80;
+    let bx=cursorX+10, by=cursorY-boxH-8;
+    if(bx+boxW>W) bx=cursorX-boxW-10;
+    if(by<8) by=cursorY+10;
+
+    ctx.fillStyle="rgba(0,0,0,.72)"; ctx.fillRect(bx,by,boxW,boxH);
+    ctx.fillStyle="rgba(255,255,255,.95)"; ctx.font="16px system-ui,sans-serif";
+    ctx.fillText(`Mode: ${getModeLabel(filterMode.value)}`,bx+10,by+16);
+    ctx.fillText(`f ≈ ${Math.round(cursorHz)} Hz`,bx+10,by+34);
+    ctx.fillText(`理論: Geo ${geo.toFixed(2)} dB / Air ${air.toFixed(2)} dB / Total ${total.toFixed(2)} dB`,bx+10,by+54);
+    if(hasLive){
+      const idx=getNearestBinIndex(cursorHz);
+      const iv=inData[idx],ov=outData[idx];
+      if(Number.isFinite(iv)&&Number.isFinite(ov)){
+        const att=Math.max(0,iv-ov);
+        ctx.fillText(`実測: In ${iv.toFixed(1)} dB / Out ${ov.toFixed(1)} dB / Att ${att.toFixed(1)} dB`,bx+10,by+74);
+        ctx.fillText(`比較: 理論Air ${air.toFixed(2)} dB ↔ 実測Att ${att.toFixed(1)} dB`,bx+10,by+94);
+      }
+    }
+    ctx.restore();
+  }
+
+  function redraw(){
+    const W=canvas.width, H=canvas.height;
+    ctx.clearRect(0,0,W,H);
+    drawGrid(W,H); drawAttAxis(W,H); drawTheoryAirCurve(W,H);
+    if(audioCtx&&isRunning){
+      analyserIn.getFloatFrequencyData(inData);
+      analyserOut.getFloatFrequencyData(outData);
+      drawCurve(inData,COLOR.accent,W,H);
+      drawCurve(outData,COLOR.accent2,W,H);
+      drawAttCurve(inData,outData,W,H);
+    }
+    updateCursorReadout(); drawCrosshair(W,H);
+  }
+
+  function frame(ts){
+    if(!isRunning) return;
+    if(ts-lastFrameTs>=FPS_INTERVAL){lastFrameTs=ts;redraw();}
+    rafId=requestAnimationFrame(frame);
+  }
+  function startDrawLoop(){
+    if(rafId) cancelAnimationFrame(rafId);
+    lastFrameTs=0; rafId=requestAnimationFrame(frame);
+  }
+
+  // Paired input/slider helper — replaces repetitive syncDist/syncAlpha/syncSine
+  function makePairSync(numEl,sliderEl,parseFn,lo,hi,onCommit){
+    function sync(raw){
+      const val=clamp(parseFn(raw)||lo,lo,hi);
+      numEl.value=(parseFn===parseFloat)?val.toFixed(4):val;
+      sliderEl.value=val; onCommit(val);
+    }
+    numEl.addEventListener("input",e=>sync(e.target.value));
+    sliderEl.addEventListener("input",e=>sync(e.target.value));
+  }
+
+  // --- UI events ---
+  btnStart.addEventListener("click",start);
+  btnStop.addEventListener("click",stop);
+
+  sigType.addEventListener("change",()=>{
+    sineBox.style.display=(sigType.value==="sine")?"block":"none";
+    if(isRunning) rebuildSource(); redraw();
+  });
+  vol.addEventListener("input",()=>{updateProcessingParams();redraw();});
+
+  makePairSync(sineHz,sineHzSlider,v=>parseInt(v,10),20,20000,val=>{
+    if(isRunning&&srcNode?.frequency) srcNode.frequency.value=val;
+    redraw();
+  });
+  makePairSync(dist,distSlider,v=>parseInt(v,10),1,500,()=>{updateProcessingParams();redraw();});
+  makePairSync(alpha1k,alpha1kSlider,v=>parseFloat(v),0,0.1,()=>{updateProcessingParams();redraw();});
+
+  alphaModel.addEventListener("change",()=>{updateProcessingParams();redraw();});
+  filterMode.addEventListener("change",()=>{
+    updateInfoUI();
+    if(audioCtx){buildProcessingChain();updateProcessingParams();}
+    redraw();
+  });
+  fftSizeSel.addEventListener("change",()=>{if(audioCtx) setFFT();redraw();});
+  smooth.addEventListener("input",()=>{
+    const v=parseFloat(smooth.value);
+    if(analyserIn)  analyserIn.smoothingTimeConstant=v;
+    if(analyserOut) analyserOut.smoothingTimeConstant=v;
+    redraw();
+  });
+  xScale.addEventListener("change",redraw);
+
+  canvas.addEventListener("mousemove",ev=>{
+    const r=canvas.getBoundingClientRect();
+    cursorX=clamp((ev.clientX-r.left)*canvas.width/r.width,0,canvas.width);
+    cursorY=clamp((ev.clientY-r.top)*canvas.height/r.height,0,canvas.height);
+    cursorHz=hzFromX(cursorX,xScale.value,canvas.width);
+    redraw();
+  });
+  canvas.addEventListener("mouseleave",()=>{cursorX=cursorY=null;redraw();});
+
+  // --- Init ---
+  sineBox.style.display="none";
+  updateInfoUI(); redraw();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>数独 自動生成（唯一解）</title>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#101a2e; --panel2:#0f1730;
+      --text:#e8eefc; --muted:#a9b6d6; --accent:#56b4e9; /* Okabe-Ito */
+      --good:#009e73; --warn:#f0e442; --bad:#d55e00; --line:#2b3a63;
+      --cell:#0f1a33; --cell2:#0c1428;
+      --fixed:#18284d; --sel:#243a6a; --peer:#142449;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background: radial-gradient(1200px 600px at 20% 10%, #13224a 0%, var(--bg) 60%);
+      color:var(--text);
+    }
+    header{
+      padding:18px 16px 8px;
+      max-width: 980px; margin:0 auto;
+    }
+    h1{margin:0 0 6px; font-size:20px}
+    .sub{color:var(--muted); font-size:13px}
+    .wrap{
+      max-width:980px; margin:0 auto; padding:12px 16px 18px;
+      display:grid; grid-template-columns: 1fr 320px; gap:14px;
+    }
+    @media (max-width: 860px){
+      .wrap{grid-template-columns: 1fr; }
+    }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+      overflow:hidden;
+    }
+    .card .hd{
+      padding:12px 12px 10px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      background: rgba(0,0,0,0.12);
+      border-bottom:1px solid rgba(255,255,255,0.08);
+    }
+    .card .bd{ padding:12px; }
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .row > *{flex: 0 0 auto}
+    select, button, input[type="checkbox"]{
+      font-size:14px;
+    }
+    select, button{
+      background: rgba(255,255,255,0.07);
+      color: var(--text);
+      border:1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding:9px 10px;
+      cursor:pointer;
+      transition: transform .04s ease, background .15s ease;
+    }
+    button:hover{background: rgba(255,255,255,0.10)}
+    button:active{transform: translateY(1px)}
+    button.primary{
+      background: rgba(86,180,233,0.20);
+      border-color: rgba(86,180,233,0.45);
+    }
+    button.primary:hover{background: rgba(86,180,233,0.26)}
+    button.danger{
+      background: rgba(213,94,0,0.20);
+      border-color: rgba(213,94,0,0.45);
+    }
+    .hint{
+      color: var(--muted);
+      font-size:12px;
+      margin-top:8px;
+      line-height:1.45;
+    }
+    .status{
+      font-size:12px; color: var(--muted);
+      display:flex; gap:10px; align-items:center;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:50%;
+      background: var(--muted);
+      box-shadow: 0 0 0 0 rgba(86,180,233,0.5);
+    }
+    .dot.busy{
+      background: var(--accent);
+      animation:pulse 1.0s infinite;
+    }
+    @keyframes pulse{
+      0%{ box-shadow:0 0 0 0 rgba(86,180,233,0.45) }
+      70%{ box-shadow:0 0 0 10px rgba(86,180,233,0.0) }
+      100%{ box-shadow:0 0 0 0 rgba(86,180,233,0.0) }
+    }
+    /* Sudoku grid */
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(9, 1fr);
+      gap: 0;
+      border:2px solid rgba(255,255,255,0.18);
+      border-radius: 14px;
+      overflow:hidden;
+      user-select:none;
+    }
+    .cell{
+      position:relative;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.08));
+      aspect-ratio: 1 / 1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .cell:nth-child(odd){ background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(0,0,0,0.09)); }
+    .cell.bdrR{ border-right: 2px solid rgba(255,255,255,0.18); }
+    .cell.bdrB{ border-bottom:2px solid rgba(255,255,255,0.18); }
+    .cell.peer{ background: rgba(20,36,73,0.55); }
+    .cell.sel{ background: rgba(36,58,106,0.70); outline:2px solid rgba(86,180,233,0.65); outline-offset:-2px; }
+    .cell.fixed{ background: rgba(24,40,77,0.75); }
+    .cell.conflict{ outline:2px solid rgba(213,94,0,0.85); outline-offset:-2px; }
+    .cell input{
+      width:100%; height:100%;
+      border:none; outline:none;
+      text-align:center;
+      font-size: clamp(18px, 3.2vw, 26px);
+      color: var(--text);
+      background: transparent;
+      caret-color: var(--accent);
+      padding:0;
+    }
+    .cell.fixed input{
+      font-weight: 700;
+      color: #eaf4ff;
+    }
+    .cell input::selection{ background: rgba(86,180,233,0.35); }
+    .pad{
+      display:grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap:8px;
+      margin-top:10px;
+    }
+    .pad button{
+      padding:10px 0;
+      border-radius: 14px;
+      font-weight:600;
+    }
+    .pad button.num{
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.12);
+    }
+    .pad button.num:hover{ background: rgba(255,255,255,0.10); }
+    .pad button.erase{
+      background: rgba(240,228,66,0.14);
+      border-color: rgba(240,228,66,0.38);
+      color:#fff;
+    }
+    .log{
+      margin-top:10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      background: rgba(0,0,0,0.18);
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius: 12px;
+      padding:10px;
+      max-height: 150px;
+      overflow:auto;
+      color:#d7e2ff;
+      white-space: pre-wrap;
+    }
+    .kpi{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:8px;
+      margin-top:10px;
+    }
+    .pill{
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      padding:10px 10px;
+      background: rgba(255,255,255,0.05);
+    }
+    .pill .t{font-size:11px; color:var(--muted)}
+    .pill .v{font-size:16px; font-weight:700; margin-top:2px}
+    .small{font-size:12px; color:var(--muted)}
+    .chk{display:flex; align-items:center; gap:8px}
+  </style>
+</head>
+<body>
+<header>
+  <h1>数独 自動生成（唯一解保証）</h1>
+  <div class="sub">単体HTMLで動作。生成は「完成盤面→ヒント削除→唯一解チェック」。</div>
+</header>
+
+<div class="wrap">
+  <section class="card">
+    <div class="hd">
+      <div class="status">
+        <div id="dot" class="dot"></div>
+        <div id="statusText">待機中</div>
+      </div>
+      <div class="small">矢印移動 / 1〜9入力 / Backspaceで消去</div>
+    </div>
+    <div class="bd">
+      <div id="grid" class="grid" aria-label="数独盤面" role="grid"></div>
+      <div class="pad" aria-label="数字パッド">
+        <button class="num" data-n="1">1</button>
+        <button class="num" data-n="2">2</button>
+        <button class="num" data-n="3">3</button>
+        <button class="num" data-n="4">4</button>
+        <button class="num" data-n="5">5</button>
+        <button class="num" data-n="6">6</button>
+        <button class="num" data-n="7">7</button>
+        <button class="num" data-n="8">8</button>
+        <button class="num" data-n="9">9</button>
+        <button class="erase" data-n="0">消去</button>
+      </div>
+
+      <div class="kpi">
+        <div class="pill">
+          <div class="t">ヒント数（固定セル）</div>
+          <div id="clues" class="v">-</div>
+        </div>
+        <div class="pill">
+          <div class="t">入力セル数</div>
+          <div id="fills" class="v">-</div>
+        </div>
+      </div>
+
+      <div class="hint">
+        <b>使い方</b>：右の「新規生成」→盤面に入力→「チェック」で矛盾検出。<br>
+        ※「解答表示」は学習用。唯一解なので表示結果は正解です。
+      </div>
+    </div>
+  </section>
+
+  <aside class="card">
+    <div class="hd"><b>操作</b></div>
+    <div class="bd">
+      <div class="row">
+        <label class="small" for="difficulty">難易度</label>
+        <select id="difficulty">
+          <option value="easy">Easy（ヒント多め）</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+          <option value="expert">Expert（ヒント少なめ）</option>
+        </select>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <label class="chk small">
+          <input id="symmetry" type="checkbox" />
+          対称に削る（見た目が綺麗）
+        </label>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button id="btnNew" class="primary">新規生成</button>
+        <button id="btnCheck">チェック</button>
+        <button id="btnSolve">解答表示</button>
+        <button id="btnReset" class="danger">リセット</button>
+      </div>
+
+      <div class="hint">
+        <b>難易度の目安</b><br>
+        Easy=36 / Medium=32 / Hard=28 / Expert=24 ヒント程度（盤面により変動）
+      </div>
+
+      <div id="log" class="log" aria-label="ログ"></div>
+    </div>
+  </aside>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- Utilities ----------
+  const $ = (id) => document.getElementById(id);
+  const logEl = $("log");
+  const statusText = $("statusText");
+  const dot = $("dot");
+  const gridEl = $("grid");
+  const cluesEl = $("clues");
+  const fillsEl = $("fills");
+  const diffEl = $("difficulty");
+  const symmetryEl = $("symmetry");
+
+  function log(msg){
+    const t = new Date().toLocaleTimeString();
+    logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
+  }
+  function setBusy(b, msg){
+    dot.classList.toggle("busy", !!b);
+    statusText.textContent = msg || (b ? "処理中…" : "待機中");
+  }
+
+  // ---------- Sudoku core ----------
+  // grid: Int8Array(81), 0=empty, 1..9
+  const ROW = (i) => Math.floor(i / 9);
+  const COL = (i) => i % 9;
+  const BOX = (r, c) => Math.floor(r/3)*3 + Math.floor(c/3);
+
+  function cloneGrid(g){ return new Int8Array(g); }
+
+  function shuffled(arr){
+    const a = arr.slice();
+    for(let i=a.length-1; i>0; i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function isValidPlacement(grid, idx, val){
+    const r = ROW(idx), c = COL(idx);
+    // row
+    const r0 = r*9;
+    for(let j=0; j<9; j++){
+      const k = r0+j;
+      if(k!==idx && grid[k]===val) return false;
+    }
+    // col
+    for(let i=0; i<9; i++){
+      const k = i*9+c;
+      if(k!==idx && grid[k]===val) return false;
+    }
+    // box
+    const br = Math.floor(r/3)*3, bc = Math.floor(c/3)*3;
+    for(let dr=0; dr<3; dr++){
+      for(let dc=0; dc<3; dc++){
+        const k = (br+dr)*9+(bc+dc);
+        if(k!==idx && grid[k]===val) return false;
+      }
+    }
+    return true;
+  }
+
+  function candidates(grid, idx){
+    if(grid[idx] !== 0) return [];
+    const used = new Set();
+    const r = ROW(idx), c = COL(idx);
+    const r0 = r*9;
+    for(let j=0; j<9; j++) used.add(grid[r0+j]);
+    for(let i=0; i<9; i++) used.add(grid[i*9+c]);
+    const br = Math.floor(r/3)*3, bc = Math.floor(c/3)*3;
+    for(let dr=0; dr<3; dr++){
+      for(let dc=0; dc<3; dc++){
+        used.add(grid[(br+dr)*9 + (bc+dc)]);
+      }
+    }
+    const out = [];
+    for(let v=1; v<=9; v++) if(!used.has(v)) out.push(v);
+    return out;
+  }
+
+  function findNextCellMRV(grid){
+    // Minimum Remaining Values heuristic
+    let bestIdx = -1;
+    let bestLen = 10;
+    for(let i=0; i<81; i++){
+      if(grid[i] === 0){
+        const cand = candidates(grid, i);
+        const len = cand.length;
+        if(len === 0) return { idx:i, cand: [] };
+        if(len < bestLen){
+          bestLen = len;
+          bestIdx = i;
+          if(len === 1) break;
+        }
+      }
+    }
+    if(bestIdx === -1) return null;
+    return { idx: bestIdx, cand: candidates(grid, bestIdx) };
+  }
+
+  function solveOne(grid){
+    const spot = findNextCellMRV(grid);
+    if(!spot) return true; // solved
+    const { idx, cand } = spot;
+    if(cand.length === 0) return false;
+
+    const tryVals = shuffled(cand);
+    for(const v of tryVals){
+      grid[idx] = v;
+      if(solveOne(grid)) return true;
+      grid[idx] = 0;
+    }
+    return false;
+  }
+
+  function countSolutions(grid, limit=2){
+    // backtracking count up to 'limit'
+    let count = 0;
+    function dfs(){
+      if(count >= limit) return;
+      const spot = findNextCellMRV(grid);
+      if(!spot){
+        count++;
+        return;
+      }
+      const { idx, cand } = spot;
+      if(cand.length === 0) return;
+      // no shuffle here for determinism; but OK either way
+      for(const v of cand){
+        grid[idx] = v;
+        dfs();
+        grid[idx] = 0;
+        if(count >= limit) return;
+      }
+    }
+    dfs();
+    return count;
+  }
+
+  function generateFullSolution(){
+    const g = new Int8Array(81);
+    // Optional: seed with random first row to diversify
+    const firstRow = shuffled([1,2,3,4,5,6,7,8,9]);
+    for(let j=0; j<9; j++) g[j] = firstRow[j];
+    if(!solveOne(g)) throw new Error("完成盤面生成に失敗しました（solveOne=false）");
+    return g;
+  }
+
+  function difficultyToClues(diff){
+    switch(diff){
+      case "easy": return 36;
+      case "medium": return 32;
+      case "hard": return 28;
+      case "expert": return 24;
+      default: return 32;
+    }
+  }
+
+  function makePuzzleFromSolution(solution, targetClues, symmetric){
+    const puzzle = cloneGrid(solution);
+    // indices to try removing
+    let indices = [...Array(81).keys()];
+    indices = shuffled(indices);
+
+    function removeAt(i){
+      const j = symmetric ? (80 - i) : i;
+      const prevI = puzzle[i], prevJ = puzzle[j];
+
+      puzzle[i] = 0;
+      if(symmetric) puzzle[j] = 0;
+
+      // Ensure still uniquely solvable
+      const tmp = cloneGrid(puzzle);
+      const n = countSolutions(tmp, 2);
+      if(n !== 1){
+        // revert
+        puzzle[i] = prevI;
+        if(symmetric) puzzle[j] = prevJ;
+        return false;
+      }
+      return true;
+    }
+
+    let clues = puzzle.reduce((a,v)=>a+(v?1:0), 0);
+    for(const i of indices){
+      if(clues <= targetClues) break;
+      if(puzzle[i] === 0) continue;
+      // In symmetry mode, skip if counterpart already empty
+      const j = symmetric ? (80 - i) : i;
+      if(symmetric && puzzle[j] === 0) continue;
+
+      const prevClues = clues;
+      const ok = removeAt(i);
+      if(ok){
+        clues = puzzle.reduce((a,v)=>a+(v?1:0), 0);
+        // If symmetry removes two cells sometimes
+        if(clues === prevClues) clues = puzzle.reduce((a,v)=>a+(v?1:0), 0);
+      }
+    }
+    return puzzle;
+  }
+
+  // ---------- UI state ----------
+  let solution = new Int8Array(81);
+  let puzzle = new Int8Array(81);
+  let fixed = new Array(81).fill(false);
+  let selected = 0;
+  let generating = false;
+
+  function buildGridUI(){
+    gridEl.innerHTML = "";
+    for(let i=0; i<81; i++){
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      const r = ROW(i), c = COL(i);
+      if(c===2 || c===5) cell.classList.add("bdrR");
+      if(r===2 || r===5) cell.classList.add("bdrB");
+
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.inputMode = "numeric";
+      inp.maxLength = 1;
+      inp.autocomplete = "off";
+      inp.spellcheck = false;
+      inp.setAttribute("aria-label", `行${r+1} 列${c+1}`);
+      inp.dataset.idx = String(i);
+
+      cell.addEventListener("click", () => selectCell(i));
+      inp.addEventListener("focus", () => selectCell(i));
+
+      inp.addEventListener("input", (e) => {
+        const idx = Number(inp.dataset.idx);
+        if(fixed[idx]){
+          inp.value = puzzle[idx] ? String(puzzle[idx]) : "";
+          return;
+        }
+        const v = inp.value.replace(/[^1-9]/g, "");
+        inp.value = v;
+        puzzle[idx] = v ? Number(v) : 0;
+        updateStats();
+        paintPeersAndConflicts();
+      });
+
+      inp.addEventListener("keydown", (e) => {
+        const idx = Number(inp.dataset.idx);
+        if(e.key === "ArrowUp"){ e.preventDefault(); selectCell(idx-9); }
+        else if(e.key === "ArrowDown"){ e.preventDefault(); selectCell(idx+9); }
+        else if(e.key === "ArrowLeft"){ e.preventDefault(); selectCell(idx-1); }
+        else if(e.key === "ArrowRight"){ e.preventDefault(); selectCell(idx+1); }
+        else if(e.key === "Backspace" || e.key === "Delete"){
+          if(!fixed[idx]){
+            puzzle[idx] = 0;
+            inp.value = "";
+            updateStats();
+            paintPeersAndConflicts();
+          }
+        } else if(e.key >= "1" && e.key <= "9"){
+          if(fixed[idx]){ e.preventDefault(); }
+        } else if(e.key === "0"){
+          e.preventDefault();
+          if(!fixed[idx]){
+            puzzle[idx] = 0;
+            inp.value = "";
+            updateStats();
+            paintPeersAndConflicts();
+          }
+        }
+      });
+
+      cell.appendChild(inp);
+      gridEl.appendChild(cell);
+    }
+  }
+
+  function selectCell(idx){
+    if(idx < 0 || idx >= 81) return;
+    selected = idx;
+    const input = gridEl.querySelector(`input[data-idx="${idx}"]`);
+    if(input) input.focus({preventScroll:true});
+    paintPeersAndConflicts();
+  }
+
+  function applyPuzzleToUI(){
+    const inputs = gridEl.querySelectorAll("input");
+    inputs.forEach(inp => {
+      const idx = Number(inp.dataset.idx);
+      const cell = inp.parentElement;
+      const v = puzzle[idx];
+      inp.value = v ? String(v) : "";
+      fixed[idx] = v !== 0; // fixed are the given clues at generation time
+      inp.readOnly = fixed[idx];
+      cell.classList.toggle("fixed", fixed[idx]);
+    });
+    updateStats();
+    selectCell(0);
+    paintPeersAndConflicts();
+  }
+
+  function updateStats(){
+    const clues = fixed.filter(Boolean).length;
+    const fills = puzzle.reduce((a,v)=>a+(v?1:0),0) - clues;
+    cluesEl.textContent = String(clues);
+    fillsEl.textContent = String(Math.max(0, fills));
+  }
+
+  function peersOf(idx){
+    const r = ROW(idx), c = COL(idx);
+    const out = new Set();
+    for(let j=0; j<9; j++) out.add(r*9+j);
+    for(let i=0; i<9; i++) out.add(i*9+c);
+    const br = Math.floor(r/3)*3, bc = Math.floor(c/3)*3;
+    for(let dr=0; dr<3; dr++) for(let dc=0; dc<3; dc++) out.add((br+dr)*9+(bc+dc));
+    out.delete(idx);
+    return out;
+  }
+
+  function computeConflicts(){
+    const conflict = new Array(81).fill(false);
+    // check duplicates in row/col/box
+    function markGroup(indices){
+      const map = new Map();
+      for(const idx of indices){
+        const v = puzzle[idx];
+        if(!v) continue;
+        if(!map.has(v)) map.set(v, []);
+        map.get(v).push(idx);
+      }
+      for(const [v, arr] of map.entries()){
+        if(arr.length > 1){
+          for(const idx of arr) conflict[idx] = true;
+        }
+      }
+    }
+    for(let r=0; r<9; r++){
+      const indices = [];
+      for(let c=0; c<9; c++) indices.push(r*9+c);
+      markGroup(indices);
+    }
+    for(let c=0; c<9; c++){
+      const indices = [];
+      for(let r=0; r<9; r++) indices.push(r*9+c);
+      markGroup(indices);
+    }
+    for(let br=0; br<3; br++){
+      for(let bc=0; bc<3; bc++){
+        const indices = [];
+        for(let dr=0; dr<3; dr++) for(let dc=0; dc<3; dc++){
+          indices.push((br*3+dr)*9 + (bc*3+dc));
+        }
+        markGroup(indices);
+      }
+    }
+    return conflict;
+  }
+
+  function paintPeersAndConflicts(){
+    const cells = gridEl.querySelectorAll(".cell");
+    const peers = peersOf(selected);
+    const conflicts = computeConflicts();
+
+    cells.forEach((cell, idx) => {
+      cell.classList.toggle("sel", idx===selected);
+      cell.classList.toggle("peer", peers.has(idx));
+      cell.classList.toggle("conflict", conflicts[idx]);
+    });
+  }
+
+  function checkSolved(){
+    for(let i=0;i<81;i++){
+      if(puzzle[i] === 0) return false;
+      if(puzzle[i] !== solution[i]) return false;
+    }
+    return true;
+  }
+
+  // ---------- Actions ----------
+  async function generateNew(){
+    if(generating) return;
+    generating = true;
+    try{
+      setBusy(true, "生成中…（唯一解チェック）");
+      log("新規生成を開始");
+
+      // yield to UI
+      await new Promise(r=>setTimeout(r, 20));
+
+      solution = generateFullSolution();
+      const targetClues = difficultyToClues(diffEl.value);
+      const symmetric = symmetryEl.checked;
+
+      // Remove clues with uniqueness check
+      puzzle = makePuzzleFromSolution(solution, targetClues, symmetric);
+
+      fixed = new Array(81).fill(false);
+      applyPuzzleToUI();
+
+      log(`生成完了：難易度=${diffEl.value}, 目標ヒント=${targetClues}, 実ヒント=${fixed.filter(Boolean).length}, 対称=${symmetric ? "ON":"OFF"}`);
+      setBusy(false, "生成完了");
+    }catch(err){
+      console.error(err);
+      log(`ERROR: ${err.message || err}`);
+      setBusy(false, "エラー");
+    }finally{
+      generating = false;
+    }
+  }
+
+  function doCheck(){
+    const conflicts = computeConflicts();
+    const anyConflict = conflicts.some(v=>v);
+    paintPeersAndConflicts();
+
+    if(anyConflict){
+      log("チェック：矛盾あり（赤枠セルを確認）");
+      setBusy(false, "矛盾あり");
+      return;
+    }
+    // also verify if filled cells match solution (optional)
+    let wrong = 0, filled=0;
+    for(let i=0;i<81;i++){
+      if(puzzle[i]){
+        filled++;
+        if(puzzle[i] !== solution[i]) wrong++;
+      }
+    }
+    if(filled === 81 && wrong === 0){
+      log("チェック：完成！おめでとうございます🎉");
+      setBusy(false, "完成！");
+    }else if(wrong === 0){
+      log("チェック：矛盾なし（途中）");
+      setBusy(false, "矛盾なし");
+    }else{
+      log(`チェック：矛盾は無いが、解と違う入力が ${wrong} 箇所あります（学習用モード）`);
+      setBusy(false, "一部不一致");
+    }
+  }
+
+  function showSolve(){
+    // Fill all with solution, keep fixed notion but make all readOnly? no.
+    puzzle = cloneGrid(solution);
+    const inputs = gridEl.querySelectorAll("input");
+    inputs.forEach(inp=>{
+      const idx = Number(inp.dataset.idx);
+      inp.value = String(puzzle[idx]);
+    });
+    paintPeersAndConflicts();
+    updateStats();
+    log("解答表示：完成盤面を表示しました");
+    setBusy(false, "解答表示");
+  }
+
+  function resetToPuzzle(){
+    // Regenerate fixed from original givens: we stored fixed already. Keep fixed, clear non-fixed.
+    const inputs = gridEl.querySelectorAll("input");
+    inputs.forEach(inp=>{
+      const idx = Number(inp.dataset.idx);
+      if(!fixed[idx]){
+        puzzle[idx] = 0;
+        inp.value = "";
+      }else{
+        puzzle[idx] = Number(inp.value) || puzzle[idx];
+      }
+    });
+    paintPeersAndConflicts();
+    updateStats();
+    log("リセット：入力セルをクリアしました");
+    setBusy(false, "リセット完了");
+  }
+
+  // ---------- Number pad ----------
+  function applyNumber(n){
+    const idx = selected;
+    if(fixed[idx]) return;
+    const input = gridEl.querySelector(`input[data-idx="${idx}"]`);
+    if(!input) return;
+    if(n === 0){
+      puzzle[idx] = 0;
+      input.value = "";
+    }else{
+      puzzle[idx] = n;
+      input.value = String(n);
+    }
+    updateStats();
+    paintPeersAndConflicts();
+    // Move to next cell (optional): right
+    // selectCell(idx+1);
+  }
+
+  function bindPad(){
+    document.querySelectorAll(".pad button").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const n = Number(btn.dataset.n);
+        applyNumber(n);
+      });
+    });
+  }
+
+  // ---------- Bind buttons ----------
+  $("btnNew").addEventListener("click", generateNew);
+  $("btnCheck").addEventListener("click", doCheck);
+  $("btnSolve").addEventListener("click", showSolve);
+  $("btnReset").addEventListener("click", resetToPuzzle);
+
+  // ---------- Init ----------
+  function init(){
+    buildGridUI();
+    bindPad();
+    // start with an empty board; optionally auto-generate
+    log("準備完了。右の「新規生成」から開始できます。");
+    setBusy(false, "待機中");
+    // Select first cell
+    selectCell(0);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

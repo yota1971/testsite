@@ -1,0 +1,1708 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Danteレイテンシー × ユニキャストフロー可視化教材 v3.5</title>
+<style>
+  :root{
+    --bg:#f7f9fc;
+    --panel:#ffffff;
+    --text:#1f2937;
+    --muted:#6b7280;
+    --line:#d1d5db;
+    --okabe-blue:#0072B2;
+    --okabe-orange:#E69F00;
+    --okabe-green:#009E73;
+    --okabe-red:#D55E00;
+    --okabe-sky:#56B4E9;
+    --okabe-pink:#CC79A7;
+    --okabe-yellow:#F0E442;
+    --okabe-black:#222222;
+    --shadow:0 8px 24px rgba(0,0,0,0.08);
+    --radius:18px;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0;
+    color:var(--text);
+    background:linear-gradient(180deg,#f8fbff 0%,#f6f7fb 100%);
+    font-family:"Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
+  }
+
+  .container{
+    max-width:1520px;
+    margin:0 auto;
+    padding:18px;
+  }
+
+  h1{
+    margin:0 0 8px 0;
+    font-size:clamp(24px,3vw,34px);
+    line-height:1.2;
+  }
+
+  .lead{
+    margin:0 0 16px 0;
+    color:var(--muted);
+    font-size:14px;
+    line-height:1.75;
+  }
+
+  .notice{
+    border-left:6px solid var(--okabe-orange);
+    background:#fff8e8;
+    border-radius:12px;
+    padding:14px 16px;
+    font-size:13px;
+    line-height:1.75;
+    margin-bottom:18px;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns:390px 1fr;
+    gap:18px;
+    align-items:start;
+  }
+
+  @media (max-width: 1180px){
+    .grid{ grid-template-columns:1fr; }
+  }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid #e5e7eb;
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:16px;
+  }
+
+  .panel h2{
+    margin:0 0 12px 0;
+    font-size:20px;
+  }
+
+  .controls{
+    display:grid;
+    gap:14px;
+  }
+
+  .ctrl-group{
+    background:#fbfdff;
+    border:1px solid #e5e7eb;
+    border-radius:14px;
+    padding:12px;
+  }
+
+  .ctrl-title{
+    font-size:14px;
+    font-weight:800;
+    margin-bottom:10px;
+  }
+
+  .row{
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:10px;
+    align-items:center;
+    margin:8px 0;
+  }
+
+  .row label{
+    font-size:14px;
+  }
+
+  .value{
+    font-size:14px;
+    font-weight:800;
+    color:var(--okabe-blue);
+    font-variant-numeric: tabular-nums;
+  }
+
+  input[type="range"]{
+    width:100%;
+    accent-color:var(--okabe-blue);
+  }
+
+  select, input[type="number"]{
+    width:100%;
+    border:1px solid #cbd5e1;
+    border-radius:12px;
+    background:#fff;
+    color:var(--text);
+    padding:10px 12px;
+    font-size:14px;
+  }
+
+  .helper{
+    margin-top:6px;
+    color:var(--muted);
+    font-size:12px;
+    line-height:1.6;
+  }
+
+  .btns{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:8px;
+  }
+
+  button{
+    border:none;
+    border-radius:999px;
+    padding:10px 14px;
+    font-weight:800;
+    cursor:pointer;
+    background:var(--okabe-blue);
+    color:#fff;
+    transition:
+      transform 0.08s ease,
+      box-shadow 0.16s ease,
+      background-color 0.16s ease,
+      opacity 0.16s ease,
+      filter 0.16s ease,
+      outline-color 0.16s ease;
+    box-shadow:0 2px 8px rgba(0,0,0,0.08);
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action:manipulation;
+  }
+
+  button:hover{
+    box-shadow:0 4px 12px rgba(0,0,0,0.12);
+    filter:brightness(1.02);
+  }
+
+  button:active,
+  button.is-pressed{
+    transform:translateY(1px) scale(0.98);
+    box-shadow:0 1px 4px rgba(0,0,0,0.10);
+  }
+
+  button:focus-visible{
+    outline:3px solid rgba(86,180,233,0.45);
+    outline-offset:2px;
+  }
+
+  button.secondary{
+    background:#e6eef7;
+    color:#0f3c5d;
+  }
+
+  button[aria-pressed="true"]{
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,0.8), 0 4px 12px rgba(0,0,0,0.12);
+  }
+
+  .is-active-preset{
+    box-shadow:
+      inset 0 0 0 2px rgba(255,255,255,0.92),
+      0 0 0 3px rgba(0,114,178,0.18),
+      0 6px 16px rgba(0,0,0,0.14);
+    filter:saturate(1.04);
+  }
+
+  button.secondary.is-active-preset{
+    background:#dbe9f6;
+    color:#0b3655;
+  }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+    font-size:13px;
+    color:var(--muted);
+    margin-top:6px;
+    margin-bottom:8px;
+  }
+
+  .legend-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+
+  .swatch{
+    width:18px;
+    height:12px;
+    border-radius:4px;
+    border:1px solid rgba(0,0,0,.14);
+    display:inline-block;
+  }
+
+  .summary-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px;
+    margin-top:12px;
+  }
+
+  @media (max-width: 1280px){
+    .summary-grid{ grid-template-columns:repeat(2,1fr); }
+  }
+
+  @media (max-width: 700px){
+    .summary-grid{ grid-template-columns:1fr; }
+  }
+
+  .metric{
+    background:#fbfdff;
+    border:1px solid #e5e7eb;
+    border-radius:16px;
+    padding:14px;
+  }
+
+  .metric .label{
+    font-size:13px;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+
+  .metric .num{
+    font-size:24px;
+    line-height:1.2;
+    font-weight:900;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .metric .sub{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:4px;
+    line-height:1.5;
+  }
+
+  .compare{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+    margin-top:16px;
+  }
+
+  @media (max-width: 980px){
+    .compare{ grid-template-columns:1fr; }
+  }
+
+  .subpanel{
+    background:#fbfdff;
+    border:1px solid #e5e7eb;
+    border-radius:16px;
+    padding:12px;
+  }
+
+  .subpanel h3{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin:0 0 10px 0;
+    font-size:18px;
+  }
+
+  .tag{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:28px;
+    height:28px;
+    padding:0 10px;
+    border-radius:999px;
+    color:#fff;
+    font-size:14px;
+    font-weight:900;
+  }
+
+  .tag.a{ background:var(--okabe-blue); }
+  .tag.b{ background:var(--okabe-orange); }
+
+  .info-cards{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    margin-bottom:10px;
+  }
+
+  @media (max-width: 1100px){
+    .info-cards{ grid-template-columns:repeat(2,1fr); }
+  }
+
+  @media (max-width: 680px){
+    .info-cards{ grid-template-columns:1fr; }
+  }
+
+  .mini-card{
+    background:#fff;
+    border:1px solid #e5e7eb;
+    border-radius:14px;
+    padding:10px 12px;
+  }
+
+  .mini-card .mini-label{
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:4px;
+  }
+
+  .mini-card .mini-num{
+    font-size:20px;
+    font-weight:900;
+    line-height:1.2;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mini-card .mini-sub{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:3px;
+    line-height:1.4;
+  }
+
+  canvas{
+    width:100%;
+    display:block;
+    background:#fff;
+    border:1px solid #e5e7eb;
+    border-radius:14px;
+  }
+
+  .bar-wrap{
+    margin-top:10px;
+    display:grid;
+    gap:8px;
+  }
+
+  .bar-label{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    font-size:13px;
+    color:var(--muted);
+  }
+
+  .abs-bar{
+    width:100%;
+    height:20px;
+    background:#eef2f7;
+    border-radius:999px;
+    overflow:hidden;
+    border:1px solid #dde3ea;
+    position:relative;
+  }
+
+  .abs-fill{
+    height:100%;
+    display:flex;
+    min-width:0;
+    border-radius:999px;
+    overflow:hidden;
+  }
+
+  .gbe-bar{
+    width:100%;
+    height:16px;
+    background:#eef2f7;
+    border-radius:999px;
+    overflow:hidden;
+    border:1px solid #dde3ea;
+  }
+
+  .gbe-fill{
+    height:100%;
+    background:var(--okabe-sky);
+    border-radius:999px;
+    min-width:0;
+  }
+
+  .payload{ background:var(--okabe-green); }
+  .overhead{ background:var(--okabe-red); }
+
+  .scale-note{
+    font-size:12px;
+    color:var(--muted);
+    text-align:right;
+  }
+
+  .detail-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+    margin-top:16px;
+  }
+
+  @media (max-width: 980px){
+    .detail-grid{ grid-template-columns:1fr; }
+  }
+
+  .note-card{
+    background:#fff;
+    border:1px solid #e5e7eb;
+    border-radius:16px;
+    padding:14px;
+  }
+
+  .note-card h4{
+    margin:0 0 8px 0;
+    font-size:16px;
+  }
+
+  .note-card ul{
+    margin:8px 0 0 18px;
+    padding:0;
+    line-height:1.8;
+  }
+
+  .mono{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+
+  .footer{
+    margin-top:18px;
+    color:var(--muted);
+    font-size:12px;
+    line-height:1.75;
+  }
+
+  .hl{
+    color:var(--okabe-red);
+    font-weight:800;
+  }
+
+  .topology-sub{
+    color:var(--muted);
+    font-size:13px;
+    line-height:1.6;
+    margin-bottom:10px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Danteレイテンシー × ユニキャストフロー（4ch/flow）可視化教材 v3.5</h1>
+  <p class="lead">
+    低レイテンシーで何が忙しくなるのかに加え、Danteユニキャストにおける
+    <strong>4ch / flow</strong>、
+    <strong>1ch購読でも1 flow確保</strong>、
+    <strong>受信先ごとに別 unicast flow</strong>
+    という考え方を、時間軸・pps・flow数・予約帯域・1GbE使用率の観点で直感的に理解するための教材です。
+  </p>
+
+  <div class="notice">
+    <strong>教育用の概念モデルです。</strong><br>
+    ユニキャストは通常 4ch/flow として計算し、1受信先あたり <span class="mono">ceil(購読ch / 4)</span> flow を使うモデルで表示しています。
+    低レイテンシー側は packet の粒度が細かくなり、同じ flow 数でも packets/sec が増える様子を見せます。
+  </div>
+
+  <div class="grid">
+    <!-- 左：設定 -->
+    <section class="panel">
+      <h2>操作</h2>
+      <div class="controls">
+        <div class="ctrl-group">
+          <div class="ctrl-title">比較する2つのレイテンシーモード</div>
+
+          <div class="row">
+            <label for="latA">モード A</label>
+            <span class="value" id="latAText">0.25 ms</span>
+          </div>
+          <select id="latA">
+            <option value="0.25" selected>0.25 ms</option>
+            <option value="0.5">0.5 ms</option>
+            <option value="1">1.0 ms</option>
+            <option value="2">2.0 ms</option>
+            <option value="5">5.0 ms</option>
+          </select>
+
+          <div class="row" style="margin-top:12px">
+            <label for="latB">モード B</label>
+            <span class="value" id="latBText">5.0 ms</span>
+          </div>
+          <select id="latB">
+            <option value="0.25">0.25 ms</option>
+            <option value="0.5">0.5 ms</option>
+            <option value="1">1.0 ms</option>
+            <option value="2">2.0 ms</option>
+            <option value="5" selected>5.0 ms</option>
+          </select>
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-title">ユニキャスト購読条件</div>
+
+          <div class="row">
+            <label for="channels">1受信先あたりの購読チャネル数</label>
+            <span class="value" id="channelsText">1 ch</span>
+          </div>
+          <input type="range" id="channels" min="1" max="128" value="1" step="1" />
+          <div class="helper">
+            Danteユニキャストは <span class="mono">ceil(ch / 4)</span> flow として扱います。
+          </div>
+
+          <div class="row" style="margin-top:12px">
+            <label for="receivers">同じ送信を受ける受信先数</label>
+            <span class="value" id="receiversText">1 台</span>
+          </div>
+          <input type="range" id="receivers" min="1" max="16" value="1" step="1" />
+          <div class="helper">
+            ユニキャストでは受信先が増えると、その分だけ送信側の flow も増えるモデルです。
+          </div>
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-title">音声条件</div>
+
+          <div class="row">
+            <label for="sampleRate">サンプルレート</label>
+            <span class="value" id="sampleRateText">48 kHz</span>
+          </div>
+          <select id="sampleRate">
+            <option value="48000" selected>48 kHz</option>
+            <option value="96000">96 kHz</option>
+          </select>
+
+          <div class="row">
+            <label for="bitDepth">ビット深度</label>
+            <span class="value" id="bitDepthText">24 bit</span>
+          </div>
+          <select id="bitDepth">
+            <option value="24" selected>24 bit</option>
+            <option value="32">32 bit</option>
+          </select>
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-title">表示条件</div>
+
+          <div class="row">
+            <label for="windowMs">時間軸の表示幅</label>
+            <span class="value" id="windowMsText">20 ms</span>
+          </div>
+          <input type="range" id="windowMs" min="5" max="100" value="20" step="1" />
+
+          <div class="row">
+            <label for="showGrid">補助線表示</label>
+            <span class="value" id="showGridText">ON</span>
+          </div>
+          <select id="showGrid">
+            <option value="1" selected>ON</option>
+            <option value="0">OFF</option>
+          </select>
+
+          <div class="row">
+            <label for="showLabels">ラベル表示</label>
+            <span class="value" id="showLabelsText">ON</span>
+          </div>
+          <select id="showLabels">
+            <option value="1" selected>ON</option>
+            <option value="0">OFF</option>
+          </select>
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-title">すぐ試す</div>
+          <div class="btns">
+            <button type="button" id="preset1ch">1ch / 1台</button>
+            <button type="button" id="preset4ch" class="secondary">4ch / 1台</button>
+            <button type="button" id="preset5ch" class="secondary">5ch / 1台</button>
+            <button type="button" id="preset4x4" class="secondary">4ch / 4台</button>
+            <button type="button" id="preset8x4" class="secondary">8ch / 4台</button>
+            <button type="button" id="preset96k" class="secondary">96kHz化</button>
+            <button type="button" id="resetBtn" class="secondary">リセット</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右：表示 -->
+    <section class="panel">
+      <h2>見えること</h2>
+
+      <div class="legend">
+        <div class="legend-item"><span class="swatch" style="background:var(--okabe-green)"></span> 予約された音声ペイロード</div>
+        <div class="legend-item"><span class="swatch" style="background:var(--okabe-red)"></span> ヘッダ/オーバーヘッド</div>
+        <div class="legend-item"><span class="swatch" style="background:var(--okabe-sky)"></span> 1GbE使用率バー</div>
+        <div class="legend-item"><span class="swatch" style="background:var(--okabe-blue)"></span> モードA</div>
+        <div class="legend-item"><span class="swatch" style="background:var(--okabe-orange)"></span> モードB</div>
+      </div>
+
+      <div class="summary-grid">
+        <div class="metric">
+          <div class="label">1受信先あたり必要flow数</div>
+          <div class="num" id="flowsPerReceiver">0 flow</div>
+          <div class="sub">1～4chで1 flow、5～8chで2 flow …</div>
+        </div>
+
+        <div class="metric">
+          <div class="label">送信側合計flow数</div>
+          <div class="num" id="totalFlows">0 flow</div>
+          <div class="sub">受信先数を増やすと unicast flow も増える</div>
+        </div>
+
+        <div class="metric">
+          <div class="label">送信側で確保されるチャネル枠</div>
+          <div class="num" id="reservedChannels">0 ch</div>
+          <div class="sub">4ch単位で丸めた予約枠 × 受信先数</div>
+        </div>
+
+        <div class="metric">
+          <div class="label">未使用だが確保される枠</div>
+          <div class="num" id="unusedReserved">0 ch</div>
+          <div class="sub">例: 1ch購読でも4ch枠のうち3chは空き</div>
+        </div>
+
+        <div class="metric">
+          <div class="label">実音声の合計ペイロード</div>
+          <div class="num" id="actualPayloadMbps">0.00 Mbps</div>
+          <div class="sub">購読ch数 × 受信先数 ベース（参考）</div>
+        </div>
+
+        <div class="metric">
+          <div class="label">flow確保ベースのペイロード</div>
+          <div class="num" id="reservedPayloadMbps">0.00 Mbps</div>
+          <div class="sub">4ch/flow 丸め後の教育用表示</div>
+        </div>
+
+        <div class="metric">
+          <div class="label">モードAの送信 packets/sec</div>
+          <div class="num" id="ppsA">0 pps</div>
+          <div class="sub">flow数 × 各flowの packet 化頻度</div>
+        </div>
+
+        <div class="metric">
+          <div class="label">モードBの送信 packets/sec</div>
+          <div class="num" id="ppsB">0 pps</div>
+          <div class="sub">低レイテンシーほど大きくなる</div>
+        </div>
+      </div>
+
+      <div class="summary-grid" style="margin-top:12px;">
+        <div class="metric">
+          <div class="label">要点</div>
+          <div class="num" id="mainMsg" style="font-size:18px;">帯域よりも flow と pps の見え方が変わる</div>
+          <div class="sub">「1chでも1flow」「低レイテンシーでpps増」を掴む</div>
+        </div>
+      </div>
+
+      <div class="compare">
+        <div class="subpanel">
+          <h3><span class="tag a">A</span> 時間軸（送信ノードA側のunicast flow）</h3>
+
+          <div class="info-cards">
+            <div class="mini-card">
+              <div class="mini-label">送信側合計flow数</div>
+              <div class="mini-num" id="cardFlowsA">0 flow</div>
+              <div class="mini-sub">受信先への unicast 合計</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-label">各flowの packet 化頻度</div>
+              <div class="mini-num" id="cardFlowPpsA">0 pps</div>
+              <div class="mini-sub">レイテンシーで変化</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-label">送信側合計 packets/sec</div>
+              <div class="mini-num" id="cardTotalPpsA">0 pps</div>
+              <div class="mini-sub">flow数 × 各flowの pps</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-label">1GbE使用率</div>
+              <div class="mini-num" id="cardGbeA">0.00 %</div>
+              <div class="mini-sub">1000Mbps 比</div>
+            </div>
+          </div>
+
+          <canvas id="timelineA" width="960" height="290" aria-label="モードAの送信タイムライン"></canvas>
+
+          <div class="bar-wrap">
+            <div class="bar-label">
+              <span>送信側合計ネットワーク使用（概算）</span>
+              <span id="netA">0.00 Mbps</span>
+            </div>
+            <div class="abs-bar">
+              <div id="absFillA" class="abs-fill" style="width:0%">
+                <div id="payloadBarA" class="payload" style="width:0%"></div>
+                <div id="overheadBarA" class="overhead" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="bar-label">
+              <span>予約ペイロード比率: <span id="payloadRatioA">0%</span></span>
+              <span>オーバーヘッド比率: <span id="overheadRatioA">0%</span></span>
+            </div>
+          </div>
+
+          <div class="bar-wrap">
+            <div class="bar-label">
+              <span>1GbE使用率（1000Mbps比）</span>
+              <span id="gbeTextA">0.00 %</span>
+            </div>
+            <div class="gbe-bar">
+              <div id="gbeFillA" class="gbe-fill" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="subpanel">
+          <h3><span class="tag b">B</span> 時間軸（送信ノードA側のunicast flow）</h3>
+
+          <div class="info-cards">
+            <div class="mini-card">
+              <div class="mini-label">送信側合計flow数</div>
+              <div class="mini-num" id="cardFlowsB">0 flow</div>
+              <div class="mini-sub">受信先への unicast 合計</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-label">各flowの packet 化頻度</div>
+              <div class="mini-num" id="cardFlowPpsB">0 pps</div>
+              <div class="mini-sub">レイテンシーで変化</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-label">送信側合計 packets/sec</div>
+              <div class="mini-num" id="cardTotalPpsB">0 pps</div>
+              <div class="mini-sub">flow数 × 各flowの pps</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-label">1GbE使用率</div>
+              <div class="mini-num" id="cardGbeB">0.00 %</div>
+              <div class="mini-sub">1000Mbps 比</div>
+            </div>
+          </div>
+
+          <canvas id="timelineB" width="960" height="290" aria-label="モードBの送信タイムライン"></canvas>
+
+          <div class="bar-wrap">
+            <div class="bar-label">
+              <span>送信側合計ネットワーク使用（概算）</span>
+              <span id="netB">0.00 Mbps</span>
+            </div>
+            <div class="abs-bar">
+              <div id="absFillB" class="abs-fill" style="width:0%">
+                <div id="payloadBarB" class="payload" style="width:0%"></div>
+                <div id="overheadBarB" class="overhead" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="bar-label">
+              <span>予約ペイロード比率: <span id="payloadRatioB">0%</span></span>
+              <span>オーバーヘッド比率: <span id="overheadRatioB">0%</span></span>
+            </div>
+          </div>
+
+          <div class="bar-wrap">
+            <div class="bar-label">
+              <span>1GbE使用率（1000Mbps比）</span>
+              <span id="gbeTextB">0.00 %</span>
+            </div>
+            <div class="gbe-bar">
+              <div id="gbeFillB" class="gbe-fill" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="scale-note" id="barScaleNote">絶対量バーの基準: 0 Mbps</div>
+
+      <div class="compare">
+        <div class="subpanel">
+          <h3><span class="tag a">A</span> 処理イベント密度（送信側合計）</h3>
+          <canvas id="loadA" width="960" height="160" aria-label="モードAの処理イベント密度"></canvas>
+        </div>
+
+        <div class="subpanel">
+          <h3><span class="tag b">B</span> 処理イベント密度（送信側合計）</h3>
+          <canvas id="loadB" width="960" height="160" aria-label="モードBの処理イベント密度"></canvas>
+        </div>
+      </div>
+
+      <div class="subpanel" style="margin-top:16px;">
+        <h3>送信側 flow 消費の模式図（レイテンシーA/B共通）</h3>
+        <div class="topology-sub">
+          左の送信ノードから、右の各受信先へ <span class="mono">1受信先あたり ceil(購読ch / 4)</span> 本の unicast flow が必要、という見せ方です。
+          受信先が増えると、その分だけ送信側の flow 消費も増えます。
+        </div>
+        <canvas id="topology" width="1400" height="360" aria-label="送信側 flow 消費の模式図"></canvas>
+      </div>
+
+      <div class="detail-grid">
+        <div class="note-card">
+          <h4>読み取りのポイント</h4>
+          <ul>
+            <li><span class="hl">1ch購読でも1flow</span>なので、帯域は「1ch分」ではなく<span class="hl">4ch枠で確保</span>されると考える。</li>
+            <li><span class="hl">1～4ch</span>までは同じ1flow。<span class="hl">5ch</span>になった瞬間に2flowへ増える。</li>
+            <li>受信先が増えると、ユニキャストでは送信側のflow数も増えるので、<span class="hl">送信側のppsと総帯域</span>が増える。</li>
+            <li>レイテンシーを下げると、各flowの packet 化が細かくなるため、<span class="hl">同じflow数でも pps が増える</span>。</li>
+          </ul>
+        </div>
+
+        <div class="note-card">
+          <h4>新人向けの言い換え</h4>
+          <ul>
+            <li>Danteユニキャストの帯域は「人数」ではなく<span class="mono">4席単位</span>で会議室を借りる感じ</li>
+            <li>1人でも4席室を1部屋借りる</li>
+            <li>5人なら4席室を2部屋借りる</li>
+            <li>受信先が増えるのは、その会議室を<span class="hl">別の建物ごとに追加で借りる</span>イメージ</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer">
+        ※ オーバーヘッドは簡略化して
+        <span class="mono">Ethernet + FCS + Preamble/SFD + IFG + IPv4 + UDP + RTP ≒ 78 byte / packet</span>
+        として扱っています。PTP、制御通信、VLAN、冗長、実装差などは省略しています。
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const FLOW_CHANNELS = 4;
+  const OVERHEAD_BYTES_PER_PACKET = 78;
+  const GBE_MBPS = 1000;
+
+  const COLORS = {
+    blue: '#0072B2',
+    orange: '#E69F00',
+    green: '#009E73',
+    red: '#D55E00',
+    sky: '#56B4E9',
+    pink: '#CC79A7',
+    yellow: '#F0E442',
+    text: '#1f2937',
+    muted: '#6b7280',
+    grid: '#dbe3eb',
+    bg: '#ffffff',
+    lineSoft: '#9ca3af'
+  };
+
+  const el = {
+    latA: document.getElementById('latA'),
+    latB: document.getElementById('latB'),
+    latAText: document.getElementById('latAText'),
+    latBText: document.getElementById('latBText'),
+
+    channels: document.getElementById('channels'),
+    channelsText: document.getElementById('channelsText'),
+
+    receivers: document.getElementById('receivers'),
+    receiversText: document.getElementById('receiversText'),
+
+    sampleRate: document.getElementById('sampleRate'),
+    sampleRateText: document.getElementById('sampleRateText'),
+
+    bitDepth: document.getElementById('bitDepth'),
+    bitDepthText: document.getElementById('bitDepthText'),
+
+    windowMs: document.getElementById('windowMs'),
+    windowMsText: document.getElementById('windowMsText'),
+
+    showGrid: document.getElementById('showGrid'),
+    showGridText: document.getElementById('showGridText'),
+
+    showLabels: document.getElementById('showLabels'),
+    showLabelsText: document.getElementById('showLabelsText'),
+
+    flowsPerReceiver: document.getElementById('flowsPerReceiver'),
+    totalFlows: document.getElementById('totalFlows'),
+    reservedChannels: document.getElementById('reservedChannels'),
+    unusedReserved: document.getElementById('unusedReserved'),
+
+    actualPayloadMbps: document.getElementById('actualPayloadMbps'),
+    reservedPayloadMbps: document.getElementById('reservedPayloadMbps'),
+
+    ppsA: document.getElementById('ppsA'),
+    ppsB: document.getElementById('ppsB'),
+    mainMsg: document.getElementById('mainMsg'),
+
+    cardFlowsA: document.getElementById('cardFlowsA'),
+    cardFlowsB: document.getElementById('cardFlowsB'),
+    cardFlowPpsA: document.getElementById('cardFlowPpsA'),
+    cardFlowPpsB: document.getElementById('cardFlowPpsB'),
+    cardTotalPpsA: document.getElementById('cardTotalPpsA'),
+    cardTotalPpsB: document.getElementById('cardTotalPpsB'),
+    cardGbeA: document.getElementById('cardGbeA'),
+    cardGbeB: document.getElementById('cardGbeB'),
+
+    netA: document.getElementById('netA'),
+    netB: document.getElementById('netB'),
+    absFillA: document.getElementById('absFillA'),
+    absFillB: document.getElementById('absFillB'),
+    payloadBarA: document.getElementById('payloadBarA'),
+    payloadBarB: document.getElementById('payloadBarB'),
+    overheadBarA: document.getElementById('overheadBarA'),
+    overheadBarB: document.getElementById('overheadBarB'),
+    payloadRatioA: document.getElementById('payloadRatioA'),
+    payloadRatioB: document.getElementById('payloadRatioB'),
+    overheadRatioA: document.getElementById('overheadRatioA'),
+    overheadRatioB: document.getElementById('overheadRatioB'),
+    barScaleNote: document.getElementById('barScaleNote'),
+
+    gbeFillA: document.getElementById('gbeFillA'),
+    gbeFillB: document.getElementById('gbeFillB'),
+    gbeTextA: document.getElementById('gbeTextA'),
+    gbeTextB: document.getElementById('gbeTextB'),
+
+    timelineA: document.getElementById('timelineA'),
+    timelineB: document.getElementById('timelineB'),
+    loadA: document.getElementById('loadA'),
+    loadB: document.getElementById('loadB'),
+    topology: document.getElementById('topology'),
+
+    preset1ch: document.getElementById('preset1ch'),
+    preset4ch: document.getElementById('preset4ch'),
+    preset5ch: document.getElementById('preset5ch'),
+    preset4x4: document.getElementById('preset4x4'),
+    preset8x4: document.getElementById('preset8x4'),
+    preset96k: document.getElementById('preset96k'),
+    resetBtn: document.getElementById('resetBtn')
+  };
+
+  const presetDefs = [
+    { btn: 'preset1ch', values: { channels: 1, receivers: 1 } },
+    { btn: 'preset4ch', values: { channels: 4, receivers: 1 } },
+    { btn: 'preset5ch', values: { channels: 5, receivers: 1 } },
+    { btn: 'preset4x4', values: { channels: 4, receivers: 4 } },
+    { btn: 'preset8x4', values: { channels: 8, receivers: 4 } },
+    { btn: 'preset96k', values: { sampleRate: 96000 } },
+    {
+      btn: 'resetBtn',
+      values: {
+        latA: 0.25,
+        latB: 5,
+        channels: 1,
+        receivers: 1,
+        sampleRate: 48000,
+        bitDepth: 24,
+        windowMs: 20,
+        showGrid: 1,
+        showLabels: 1
+      }
+    }
+  ];
+
+  function fmt(num, digits=2){
+    return Number(num).toLocaleString('ja-JP', {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits
+    });
+  }
+
+  function fmtInt(num){
+    return Number(Math.round(num)).toLocaleString('ja-JP');
+  }
+
+  function bitDepthToBytes(bitDepth){
+    return bitDepth === 32 ? 4 : 3;
+  }
+
+  function readState(){
+    return {
+      latA: parseFloat(el.latA.value),
+      latB: parseFloat(el.latB.value),
+      channels: parseInt(el.channels.value, 10),
+      receivers: parseInt(el.receivers.value, 10),
+      sampleRate: parseInt(el.sampleRate.value, 10),
+      bitDepth: parseInt(el.bitDepth.value, 10),
+      bytesPerSample: bitDepthToBytes(parseInt(el.bitDepth.value, 10)),
+      windowMs: parseFloat(el.windowMs.value),
+      showGrid: el.showGrid.value === '1',
+      showLabels: el.showLabels.value === '1'
+    };
+  }
+
+  function calcModel(sampleRate, subscribedChannelsPerReceiver, receiverCount, bytesPerSample, packetMs){
+    const samplesPerPacket = Math.max(1, Math.round(sampleRate * packetMs / 1000));
+    const flowPps = sampleRate / samplesPerPacket;
+
+    const flowsPerReceiver = Math.ceil(subscribedChannelsPerReceiver / FLOW_CHANNELS);
+    const totalFlows = flowsPerReceiver * receiverCount;
+
+    const reservedChannelsPerReceiver = flowsPerReceiver * FLOW_CHANNELS;
+    const totalReservedChannels = reservedChannelsPerReceiver * receiverCount;
+    const totalActualSubscribedChannels = subscribedChannelsPerReceiver * receiverCount;
+    const totalUnusedReservedChannels = totalReservedChannels - totalActualSubscribedChannels;
+
+    const reservedPayloadBytesPerPacketPerFlow = samplesPerPacket * FLOW_CHANNELS * bytesPerSample;
+    const totalBytesPerPacketPerFlow = reservedPayloadBytesPerPacketPerFlow + OVERHEAD_BYTES_PER_PACKET;
+
+    const totalPps = flowPps * totalFlows;
+    const actualPayloadBytesPerSecTotal = sampleRate * totalActualSubscribedChannels * bytesPerSample;
+    const reservedPayloadBytesPerSecTotal = sampleRate * totalReservedChannels * bytesPerSample;
+
+    const actualPayloadMbpsTotal = actualPayloadBytesPerSecTotal * 8 / 1e6;
+    const reservedPayloadMbpsTotal = reservedPayloadBytesPerSecTotal * 8 / 1e6;
+    const totalMbps = totalPps * totalBytesPerPacketPerFlow * 8 / 1e6;
+    const overheadMbps = totalPps * OVERHEAD_BYTES_PER_PACKET * 8 / 1e6;
+
+    const payloadRatio = totalMbps > 0 ? reservedPayloadMbpsTotal / totalMbps : 0;
+    const overheadRatio = totalMbps > 0 ? overheadMbps / totalMbps : 0;
+    const gbePercent = totalMbps / GBE_MBPS * 100;
+
+    return {
+      packetMs,
+      samplesPerPacket,
+      flowPps,
+      totalPps,
+
+      subscribedChannelsPerReceiver,
+      receiverCount,
+
+      flowsPerReceiver,
+      totalFlows,
+
+      reservedChannelsPerReceiver,
+      totalReservedChannels,
+      totalActualSubscribedChannels,
+      totalUnusedReservedChannels,
+
+      reservedPayloadBytesPerPacketPerFlow,
+      totalBytesPerPacketPerFlow,
+
+      actualPayloadBytesPerSecTotal,
+      actualPayloadMbpsTotal,
+
+      reservedPayloadBytesPerSecTotal,
+      reservedPayloadMbpsTotal,
+
+      totalMbps,
+      overheadMbps,
+      payloadRatio,
+      overheadRatio,
+      gbePercent
+    };
+  }
+
+  function updateText(state){
+    el.latAText.textContent = `${Number(state.latA).toFixed(state.latA < 1 ? 2 : 1)} ms`;
+    el.latBText.textContent = `${Number(state.latB).toFixed(state.latB < 1 ? 2 : 1)} ms`;
+    el.channelsText.textContent = `${state.channels} ch`;
+    el.receiversText.textContent = `${state.receivers} 台`;
+    el.sampleRateText.textContent = `${state.sampleRate / 1000} kHz`;
+    el.bitDepthText.textContent = `${state.bitDepth} bit`;
+    el.windowMsText.textContent = `${fmt(state.windowMs,0)} ms`;
+    el.showGridText.textContent = state.showGrid ? 'ON' : 'OFF';
+    el.showLabelsText.textContent = state.showLabels ? 'ON' : 'OFF';
+  }
+
+  function fitCanvas(canvas){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const rect = canvas.getBoundingClientRect();
+    const targetW = Math.max(320, Math.round(rect.width * dpr));
+    const ratio = Number(canvas.getAttribute('height')) / Number(canvas.getAttribute('width'));
+    const targetH = Math.max(120, Math.round(targetW * ratio));
+    if(canvas.width !== targetW || canvas.height !== targetH){
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
+    return canvas.getContext('2d');
+  }
+
+  function clearCanvas(ctx, w, h){
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = COLORS.bg;
+    ctx.fillRect(0,0,w,h);
+  }
+
+  function drawGrid(ctx, x, y, w, h, showGrid){
+    if(!showGrid) return;
+    ctx.save();
+    ctx.strokeStyle = COLORS.grid;
+    ctx.lineWidth = 1;
+    const v = 10;
+    for(let i=0;i<=v;i++){
+      const xx = x + w * i / v;
+      ctx.beginPath();
+      ctx.moveTo(xx, y);
+      ctx.lineTo(xx, y+h);
+      ctx.stroke();
+    }
+    const hdiv = 5;
+    for(let i=0;i<=hdiv;i++){
+      const yy = y + h * i / hdiv;
+      ctx.beginPath();
+      ctx.moveTo(x, yy);
+      ctx.lineTo(x+w, yy);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawXAxisLabels(ctx, x, y, w, h, showLabels, windowMs){
+    if(!showLabels) return;
+    ctx.save();
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = '13px "Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const v = 10;
+    for(let i=0;i<=v;i++){
+      const xx = x + w * i / v;
+      const t = windowMs * i / v;
+      ctx.fillText(`${fmt(t,1)} ms`, xx, y+h+6);
+    }
+    ctx.restore();
+  }
+
+  function drawTimeline(canvas, model, color, state){
+    const ctx = fitCanvas(canvas);
+    const w = canvas.width;
+    const h = canvas.height;
+    clearCanvas(ctx, w, h);
+
+    const pad = {l:72, r:18, t:16, b:42};
+    const plotX = pad.l;
+    const plotY = pad.t;
+    const plotW = w - pad.l - pad.r;
+    const plotH = h - pad.t - pad.b;
+
+    drawGrid(ctx, plotX, plotY, plotW, plotH, state.showGrid);
+
+    ctx.save();
+    ctx.strokeStyle = COLORS.lineSoft;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(plotX, plotY);
+    ctx.lineTo(plotX, plotY + plotH);
+    ctx.lineTo(plotX + plotW, plotY + plotH);
+    ctx.stroke();
+    ctx.restore();
+
+    const visibleLanes = Math.min(8, Math.max(1, model.totalFlows));
+    const hiddenFlows = Math.max(0, model.totalFlows - visibleLanes);
+    const laneGap = 6;
+    const laneH = Math.max(14, Math.floor((plotH - (visibleLanes - 1) * laneGap) / visibleLanes));
+
+    if(state.showLabels){
+      ctx.save();
+      ctx.fillStyle = COLORS.muted;
+      ctx.font = '14px "Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      for(let lane=0; lane<visibleLanes; lane++){
+        const yy = plotY + lane * (laneH + laneGap) + laneH / 2;
+        ctx.fillText(`flow ${lane + 1}`, plotX - 10, yy);
+      }
+      if(hiddenFlows > 0){
+        ctx.fillText(`+${fmtInt(hiddenFlows)} flow`, plotX - 10, plotY + plotH - 10);
+      }
+      ctx.restore();
+    }
+
+    const packetMs = model.packetMs;
+    const packetCount = Math.ceil(state.windowMs / packetMs);
+    const gapPx = 2;
+    const packetW = Math.max(2, (packetMs / state.windowMs) * plotW - gapPx);
+
+    for(let lane=0; lane<visibleLanes; lane++){
+      const y0 = plotY + lane * (laneH + laneGap);
+      for(let i=0; i<packetCount; i++){
+        const t0 = i * packetMs;
+        const x0 = plotX + (t0 / state.windowMs) * plotW + 1;
+
+        ctx.fillStyle = color;
+        ctx.fillRect(x0, y0, packetW, laneH);
+
+        const oh = Math.max(4, Math.min(10, laneH * 0.26));
+        ctx.fillStyle = COLORS.red;
+        ctx.fillRect(x0, y0, packetW, oh);
+
+        ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x0 + 0.5, y0 + 0.5, Math.max(1, packetW - 1), Math.max(1, laneH - 1));
+      }
+    }
+
+    drawXAxisLabels(ctx, plotX, plotY, plotW, plotH, state.showLabels, state.windowMs);
+  }
+
+  function drawLoad(canvas, model, color, state){
+    const ctx = fitCanvas(canvas);
+    const w = canvas.width;
+    const h = canvas.height;
+    clearCanvas(ctx, w, h);
+
+    const pad = {l:56, r:18, t:18, b:38};
+    const plotX = pad.l;
+    const plotY = pad.t + 16;
+    const plotW = w - pad.l - pad.r;
+    const plotH = h - pad.t - pad.b - 16;
+
+    drawGrid(ctx, plotX, plotY, plotW, plotH, state.showGrid);
+
+    ctx.save();
+    ctx.strokeStyle = COLORS.lineSoft;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(plotX, plotY);
+    ctx.lineTo(plotX, plotY + plotH);
+    ctx.lineTo(plotX + plotW, plotY + plotH);
+    ctx.stroke();
+    ctx.restore();
+
+    const packetCount = Math.ceil(state.windowMs / model.packetMs);
+    const intensity = Math.min(1, model.totalFlows / 8);
+    const topY = plotY + plotH * (0.75 - 0.55 * intensity);
+
+    for(let i=0; i<packetCount; i++){
+      const t = i * model.packetMs;
+      const x = plotX + (t / state.windowMs) * plotW;
+
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.88;
+      ctx.beginPath();
+      ctx.moveTo(x, plotY + plotH);
+      ctx.lineTo(x, topY);
+      ctx.stroke();
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, topY, 3.8, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.10 + 0.18 * intensity;
+    ctx.fillRect(plotX, topY, plotW, plotY + plotH - topY);
+    ctx.restore();
+
+    if(state.showLabels){
+      ctx.save();
+      ctx.fillStyle = COLORS.text;
+      ctx.font = 'bold 14px "Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      const density =
+        model.totalPps > 5000 ? '非常に高い' :
+        model.totalPps > 1000 ? '高い' :
+        model.totalPps > 200 ? '中程度' : '低い';
+      ctx.fillText(`送信側イベント密度: ${density}  |  合計pps: ${fmtInt(model.totalPps)}`, plotX + 8, 6);
+      ctx.restore();
+    }
+
+    drawXAxisLabels(ctx, plotX, plotY, plotW, plotH, state.showLabels, state.windowMs);
+  }
+
+  function roundRect(ctx, x, y, w, h, r){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function drawNode(ctx, x, y, w, h, fill, stroke, title, sub1, sub2){
+    roundRect(ctx, x, y, w, h, 18);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = COLORS.text;
+    ctx.font = 'bold 16px "Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(title, x + w/2, y + 12);
+
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = '13px "Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+    ctx.fillText(sub1, x + w/2, y + 38);
+    ctx.fillText(sub2, x + w/2, y + 58);
+  }
+
+  function drawTopology(canvas, model){
+    const ctx = fitCanvas(canvas);
+    const w = canvas.width;
+    const h = canvas.height;
+    clearCanvas(ctx, w, h);
+
+    const pad = 24;
+
+    ctx.fillStyle = COLORS.text;
+    ctx.font = 'bold 16px "Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('1本の青線 = 1 unicast flow（4ch枠）', pad, 10);
+
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = '13px "Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+    ctx.fillText(`現在条件: 1受信先あたり ${fmtInt(model.flowsPerReceiver)} flow / 合計 ${fmtInt(model.totalFlows)} flow`, pad, 34);
+
+    const senderX = 40;
+    const senderY = h / 2 - 70;
+    const senderW = 230;
+    const senderH = 140;
+
+    drawNode(
+      ctx,
+      senderX, senderY, senderW, senderH,
+      'rgba(0,114,178,0.10)',
+      'rgba(0,114,178,0.45)',
+      '送信ノード A',
+      `購読設定の送出元`,
+      `合計 ${fmtInt(model.totalFlows)} flow を消費`
+    );
+
+    const poolX = senderX + senderW + 36;
+    const poolY = senderY + 20;
+    const poolW = 160;
+    const poolH = 100;
+    drawNode(
+      ctx,
+      poolX, poolY, poolW, poolH,
+      'rgba(86,180,233,0.12)',
+      'rgba(86,180,233,0.50)',
+      '送信側 flow プール',
+      `1受信先あたり ${fmtInt(model.flowsPerReceiver)} flow`,
+      `1 flow = 4ch 枠`
+    );
+
+    ctx.save();
+    ctx.strokeStyle = COLORS.lineSoft;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(senderX + senderW, senderY + senderH/2);
+    ctx.lineTo(poolX - 10, senderY + senderH/2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(poolX - 10, senderY + senderH/2);
+    ctx.lineTo(poolX - 22, senderY + senderH/2 - 6);
+    ctx.lineTo(poolX - 22, senderY + senderH/2 + 6);
+    ctx.closePath();
+    ctx.fillStyle = COLORS.lineSoft;
+    ctx.fill();
+    ctx.restore();
+
+    const visibleReceivers = Math.min(model.receiverCount, 6);
+    const hiddenReceivers = Math.max(0, model.receiverCount - visibleReceivers);
+
+    const recAreaX = poolX + poolW + 70;
+    const recAreaW = w - recAreaX - 30;
+    const recW = Math.min(190, Math.max(140, recAreaW * 0.22));
+    const recH = 86;
+
+    const recTop = 72;
+    const recBottom = h - 40;
+    const spacing = visibleReceivers > 1 ? (recBottom - recTop - recH) / (visibleReceivers - 1) : 0;
+
+    const visibleFlowsPerReceiver = Math.min(model.flowsPerReceiver, 4);
+    const hiddenFlowsPerReceiver = Math.max(0, model.flowsPerReceiver - visibleFlowsPerReceiver);
+
+    const poolOutX = poolX + poolW;
+    const trunkTop = recTop + recH/2;
+    const trunkBottom = recTop + spacing * (visibleReceivers - 1) + recH/2;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,114,178,0.25)';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    if (visibleReceivers >= 2) {
+      ctx.beginPath();
+      ctx.moveTo(poolOutX + 18, trunkTop);
+      ctx.lineTo(poolOutX + 18, trunkBottom);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    for(let i=0; i<visibleReceivers; i++){
+      const y = recTop + i * spacing;
+      const recX = recAreaX;
+      const recY = y;
+
+      drawNode(
+        ctx,
+        recX, recY, recW, recH,
+        'rgba(230,159,0,0.10)',
+        'rgba(230,159,0,0.50)',
+        `受信先 ${i + 1}`,
+        `${fmtInt(model.subscribedChannelsPerReceiver)} ch を購読`,
+        `${fmtInt(model.flowsPerReceiver)} flow 必要`
+      );
+
+      const junctionX = poolOutX + 18;
+      const targetX = recX;
+      const targetY = recY + recH/2;
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,114,178,0.18)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(junctionX, targetY);
+      ctx.lineTo(targetX - 30, targetY);
+      ctx.stroke();
+      ctx.restore();
+
+      const bundleSpread = Math.max(10, Math.min(22, visibleFlowsPerReceiver * 5));
+      for(let f=0; f<visibleFlowsPerReceiver; f++){
+        const offset = visibleFlowsPerReceiver === 1 ? 0 : (f - (visibleFlowsPerReceiver - 1)/2) * (bundleSpread / Math.max(1, visibleFlowsPerReceiver - 1));
+        const yy = targetY + offset;
+
+        ctx.save();
+        ctx.strokeStyle = COLORS.blue;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(junctionX, yy);
+        ctx.lineTo(targetX - 30, yy);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(targetX - 30, yy);
+        ctx.lineTo(targetX - 42, yy - 5);
+        ctx.lineTo(targetX - 42, yy + 5);
+        ctx.closePath();
+        ctx.fillStyle = COLORS.blue;
+        ctx.fill();
+        ctx.restore();
+      }
+
+      ctx.fillStyle = COLORS.text;
+      ctx.font = 'bold 13px "Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`× ${fmtInt(model.flowsPerReceiver)} flow`, (junctionX + targetX - 30) / 2, targetY - 10);
+
+      if(hiddenFlowsPerReceiver > 0){
+        ctx.fillStyle = COLORS.muted;
+        ctx.font = '12px "Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`（表示は4本まで / +${fmtInt(hiddenFlowsPerReceiver)} flow）`, (junctionX + targetX - 30) / 2, targetY + 12);
+      }
+    }
+
+    if(hiddenReceivers > 0){
+      ctx.fillStyle = COLORS.muted;
+      ctx.font = '13px "Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`※ 受信先は最大6台まで図示。ほかに +${fmtInt(hiddenReceivers)} 台`, recAreaX, h - 14);
+    }
+
+    const badgeW = 250;
+    const badgeH = 64;
+    const badgeX = w - badgeW - 26;
+    const badgeY = 18;
+
+    roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 16);
+    ctx.fillStyle = 'rgba(0,158,115,0.10)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,158,115,0.45)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    ctx.fillStyle = COLORS.text;
+    ctx.font = 'bold 16px "Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('送信側の flow 消費', badgeX + badgeW/2, badgeY + 10);
+
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = '13px "Segoe UI","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+    ctx.fillText(
+      `${fmtInt(model.receiverCount)} 台 × ${fmtInt(model.flowsPerReceiver)} flow = 合計 ${fmtInt(model.totalFlows)} flow`,
+      badgeX + badgeW/2, badgeY + 36
+    );
+  }
+
+  function updateAbsoluteBars(modelA, modelB){
+    const maxMbps = Math.max(modelA.totalMbps, modelB.totalMbps, 0.0001);
+
+    function setBar(model, absFill, payloadBar, overheadBar, payloadRatioEl, overheadRatioEl, netEl){
+      const absWidthPercent = Math.max(1, Math.min(100, model.totalMbps / maxMbps * 100));
+      const payloadPercentInside = Math.max(0, Math.min(100, model.payloadRatio * 100));
+      const overheadPercentInside = Math.max(0, Math.min(100, model.overheadRatio * 100));
+
+      absFill.style.width = `${absWidthPercent}%`;
+      payloadBar.style.width = `${payloadPercentInside}%`;
+      overheadBar.style.width = `${overheadPercentInside}%`;
+
+      payloadRatioEl.textContent = `${fmt(payloadPercentInside,1)}%`;
+      overheadRatioEl.textContent = `${fmt(overheadPercentInside,1)}%`;
+      netEl.textContent = `${fmt(model.totalMbps,2)} Mbps`;
+    }
+
+    setBar(modelA, el.absFillA, el.payloadBarA, el.overheadBarA, el.payloadRatioA, el.overheadRatioA, el.netA);
+    setBar(modelB, el.absFillB, el.payloadBarB, el.overheadBarB, el.payloadRatioB, el.overheadRatioB, el.netB);
+
+    el.barScaleNote.textContent = `絶対量バーの基準: A/Bの大きい方 = ${fmt(maxMbps,2)} Mbps`;
+  }
+
+  function updateGbeBars(modelA, modelB){
+    function setGbe(model, fillEl, textEl, cardEl){
+      const pct = model.gbePercent;
+      const width = pct <= 0 ? 0 : Math.min(100, Math.max(0.3, pct));
+      fillEl.style.width = `${width}%`;
+      textEl.textContent = `${fmt(pct,2)} %`;
+      cardEl.textContent = `${fmt(pct,2)} %`;
+
+      if (pct >= 80){
+        fillEl.style.background = COLORS.red;
+      } else if (pct >= 50){
+        fillEl.style.background = COLORS.yellow;
+      } else {
+        fillEl.style.background = COLORS.blue;
+      }
+    }
+
+    setGbe(modelA, el.gbeFillA, el.gbeTextA, el.cardGbeA);
+    setGbe(modelB, el.gbeFillB, el.gbeTextB, el.cardGbeB);
+  }
+
+  function presetMatchesState(presetValues){
+    for(const [key, value] of Object.entries(presetValues)){
+      if(!el[key]) return false;
+      const current = el[key].value;
+      if(String(current) !== String(value)) return false;
+    }
+    return true;
+  }
+
+  function updatePresetHighlight(){
+    presetDefs.forEach(def => {
+      const btn = el[def.btn];
+      if(!btn) return;
+      const matched = presetMatchesState(def.values);
+      btn.classList.toggle('is-active-preset', matched);
+      btn.setAttribute('data-active-preset', matched ? 'true' : 'false');
+    });
+  }
+
+  function render(){
+    const state = readState();
+    updateText(state);
+
+    const modelA = calcModel(
+      state.sampleRate,
+      state.channels,
+      state.receivers,
+      state.bytesPerSample,
+      state.latA
+    );
+
+    const modelB = calcModel(
+      state.sampleRate,
+      state.channels,
+      state.receivers,
+      state.bytesPerSample,
+      state.latB
+    );
+
+    el.flowsPerReceiver.textContent = `${fmtInt(modelA.flowsPerReceiver)} flow`;
+    el.totalFlows.textContent = `${fmtInt(modelA.totalFlows)} flow`;
+    el.reservedChannels.textContent = `${fmtInt(modelA.totalReservedChannels)} ch`;
+    el.unusedReserved.textContent = `${fmtInt(modelA.totalUnusedReservedChannels)} ch`;
+    el.actualPayloadMbps.textContent = `${fmt(modelA.actualPayloadMbpsTotal,2)} Mbps`;
+    el.reservedPayloadMbps.textContent = `${fmt(modelA.reservedPayloadMbpsTotal,2)} Mbps`;
+
+    el.ppsA.textContent = `${fmtInt(modelA.totalPps)} pps`;
+    el.ppsB.textContent = `${fmtInt(modelB.totalPps)} pps`;
+
+    el.cardFlowsA.textContent = `${fmtInt(modelA.totalFlows)} flow`;
+    el.cardFlowsB.textContent = `${fmtInt(modelB.totalFlows)} flow`;
+    el.cardFlowPpsA.textContent = `${fmtInt(modelA.flowPps)} pps`;
+    el.cardFlowPpsB.textContent = `${fmtInt(modelB.flowPps)} pps`;
+    el.cardTotalPpsA.textContent = `${fmtInt(modelA.totalPps)} pps`;
+    el.cardTotalPpsB.textContent = `${fmtInt(modelB.totalPps)} pps`;
+
+    const ratio = modelA.totalPps > modelB.totalPps
+      ? (modelA.totalPps / modelB.totalPps)
+      : (modelB.totalPps / modelA.totalPps);
+
+    const more = modelA.totalPps > modelB.totalPps ? 'A' : 'B';
+    el.mainMsg.textContent =
+      `${more} の方が送信側の pps が約 ${fmt(ratio,1)} 倍（flow数が同じでも packet 粒度が細かい）`;
+
+    updateAbsoluteBars(modelA, modelB);
+    updateGbeBars(modelA, modelB);
+
+    drawTimeline(el.timelineA, modelA, COLORS.blue, state);
+    drawTimeline(el.timelineB, modelB, COLORS.orange, state);
+    drawLoad(el.loadA, modelA, COLORS.blue, state);
+    drawLoad(el.loadB, modelB, COLORS.orange, state);
+    drawTopology(el.topology, modelA);
+
+    updatePresetHighlight();
+  }
+
+  function bind(){
+    [
+      el.latA, el.latB,
+      el.channels, el.receivers,
+      el.sampleRate, el.bitDepth,
+      el.windowMs, el.showGrid, el.showLabels
+    ].forEach(node => {
+      node.addEventListener('input', render);
+      node.addEventListener('change', render);
+    });
+
+    function pressFeedback(btn){
+      if(!btn) return;
+      btn.classList.add('is-pressed');
+      btn.setAttribute('aria-pressed', 'true');
+      window.setTimeout(() => {
+        btn.classList.remove('is-pressed');
+        btn.setAttribute('aria-pressed', 'false');
+      }, 180);
+    }
+
+    function applyPreset(values, sourceBtn){
+      Object.entries(values).forEach(([key, value]) => {
+        if(el[key]){
+          el[key].value = String(value);
+        }
+      });
+      render();
+      pressFeedback(sourceBtn);
+    }
+
+    function bindPreset(btn, values){
+      if(!btn) return;
+
+      btn.setAttribute('aria-pressed', 'false');
+
+      btn.addEventListener('click', () => {
+        applyPreset(values, btn);
+      });
+
+      btn.addEventListener('keydown', (ev) => {
+        if(ev.key === 'Enter' || ev.key === ' '){
+          ev.preventDefault();
+          applyPreset(values, btn);
+        }
+      });
+
+      btn.addEventListener('pointerdown', () => {
+        btn.classList.add('is-pressed');
+      });
+      btn.addEventListener('pointerup', () => {
+        btn.classList.remove('is-pressed');
+      });
+      btn.addEventListener('pointercancel', () => {
+        btn.classList.remove('is-pressed');
+      });
+      btn.addEventListener('pointerleave', () => {
+        btn.classList.remove('is-pressed');
+      });
+    }
+
+    presetDefs.forEach(def => {
+      bindPreset(el[def.btn], def.values);
+    });
+
+    window.addEventListener('resize', render);
+  }
+
+  bind();
+  render();
+})();
+</script>
+</body>
+</html>

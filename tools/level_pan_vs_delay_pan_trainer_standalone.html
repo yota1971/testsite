@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>レベルパン vs ディレイパン 体感ツール</title>
+  <style>
+    :root {
+      --bg: #f1f5f9;
+      --panel: #ffffff;
+      --panel2: #f8fafc;
+      --text: #0f172a;
+      --muted: #475569;
+      --line: #cbd5e1;
+      --line2: #e2e8f0;
+      --blue: #2563eb;
+      --blue2: #60a5fa;
+      --amber: #d97706;
+      --amber2: #f59e0b;
+      --ok: #0f766e;
+      --danger: #b91c1c;
+      --shadow: 0 1px 2px rgba(15,23,42,0.08), 0 10px 24px rgba(15,23,42,0.06);
+      --radius: 18px;
+      --radius-sm: 12px;
+      --focus: 0 0 0 3px rgba(37,99,235,0.18);
+      --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line2);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .card.pad { padding: 18px; }
+    .titlebar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    h1 { margin: 0; font-size: clamp(1.6rem, 1.3rem + 1vw, 2.2rem); }
+    h2 { margin: 0; font-size: 1.15rem; }
+    p { margin: 0; }
+    .sub { color: var(--muted); margin-top: 8px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .badge.blue { background: var(--blue); }
+    .badge.amber { background: var(--amber2); color: #3b2400; }
+
+    .grid-main {
+      display: grid;
+      grid-template-columns: minmax(0,1.2fr) minmax(320px,0.8fr);
+      gap: 16px;
+    }
+    .stack { display: grid; gap: 16px; }
+    @media (max-width: 980px) {
+      .grid-main { grid-template-columns: 1fr; }
+    }
+
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--line2);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    .seg {
+      display: inline-flex;
+      gap: 6px;
+      background: var(--panel2);
+      border: 1px solid var(--line2);
+      border-radius: 999px;
+      padding: 4px;
+      flex-wrap: wrap;
+    }
+    .seg button,
+    .tabbar button,
+    .presetbar button,
+    .controls button,
+    .minor-btn {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      border-radius: 999px;
+      padding: 9px 14px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 600;
+      transition: background .16s, color .16s, border-color .16s, transform .04s;
+    }
+    .seg button.active,
+    .tabbar button.active {
+      color: #fff;
+      border-color: transparent;
+    }
+    .seg button[data-mode="level"].active { background: var(--blue); }
+    .seg button[data-mode="delay"].active { background: var(--amber); }
+    .tabbar { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; }
+    .tabbar button.active[data-src="noise"] { background: var(--blue); }
+    .tabbar button.active[data-src="click"] { background: var(--amber); color: #271700; }
+    .tabbar button.active[data-src="burst"] { background: #7c3aed; color: #fff; }
+    .tabbar button.active[data-src="tone"] { background: #0f766e; color: #fff; }
+    button:hover { filter: brightness(0.99); }
+    button:active { transform: translateY(1px); }
+    button:focus-visible, input:focus-visible { outline: none; box-shadow: var(--focus); }
+
+    .row { display: grid; gap: 10px; }
+    .row + .row { margin-top: 18px; }
+    .row-head {
+      display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
+      font-size: 0.98rem;
+    }
+    .row-head .name { font-weight: 700; }
+    .row-head .value { color: #334155; font-variant-numeric: tabular-nums; }
+    .hintline {
+      display: flex; justify-content: space-between; gap: 10px; color: #64748b; font-size: 0.84rem;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--blue);
+      cursor: pointer;
+    }
+    .mode-delay input[type="range"] { accent-color: var(--amber); }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 740px) {
+      .two-col { grid-template-columns: 1fr; }
+      .tabbar { grid-template-columns: repeat(2,1fr); }
+    }
+    .mini-panel {
+      border: 1px solid var(--line2);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      padding: 12px;
+    }
+    .mini-title { font-weight: 700; margin-bottom: 8px; color: #334155; }
+    .mini-desc { color: var(--muted); font-size: 0.95rem; min-height: 2.9em; }
+    ul, ol { margin: 0; padding-left: 1.25rem; }
+    li + li { margin-top: 6px; }
+
+    .controls,
+    .presetbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .controls .play { background: var(--blue); color: #fff; border-color: transparent; }
+    .controls .stop { background: var(--danger); color: #fff; border-color: transparent; }
+    .controls .reset { background: #e2e8f0; }
+
+    .viz-wrap {
+      overflow: hidden;
+    }
+    svg { width: 100%; height: auto; display: block; }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .status-box {
+      border: 1px solid var(--line2);
+      border-radius: var(--radius-sm);
+      background: var(--panel2);
+      padding: 12px;
+    }
+    .status-name { color: #64748b; font-size: 0.84rem; margin-bottom: 5px; }
+    .status-value { font-size: 1.2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+    .info-box {
+      border: 1px solid var(--line2);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      background: #fff;
+    }
+    .info-title { font-weight: 800; margin-bottom: 8px; }
+    .info-text { color: #334155; }
+    .darkbox {
+      background: #0f172a;
+      color: #e2e8f0;
+      border: none;
+    }
+    .darkbox .info-title { color: #fff; }
+
+    .footnote {
+      margin-top: 12px;
+      font-size: 0.92rem;
+      color: #64748b;
+    }
+    .warn {
+      border: 1px solid #fecaca;
+      background: #fff1f2;
+      color: #991b1b;
+      padding: 10px 12px;
+      border-radius: 12px;
+      display: none;
+      margin-top: 10px;
+      white-space: pre-wrap;
+    }
+    .kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: #e2e8f0;
+      border-radius: 8px;
+      padding: 1px 6px;
+      color: #334155;
+      font-size: 0.92em;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card pad">
+      <div class="titlebar">
+        <div>
+          <h1>レベルパン vs ディレイパン 体感ツール</h1>
+          <p class="sub">同じ「右に寄る / 左に寄る」でも、<b>音量差</b>で寄せるのか、<b>到達時間差</b>で寄せるのかで聴こえ方は変わります。<b>ヘッドホン推奨</b>。<span class="kbd">file://</span> でそのまま動作します。</p>
+        </div>
+        <div class="badges">
+          <span class="badge blue">ILD / レベル差</span>
+          <span class="badge amber">ITD / 到達時間差</span>
+        </div>
+      </div>
+
+      <div class="grid-main">
+        <div class="stack">
+          <section class="section" id="controlSection">
+            <div class="section-header">
+              <div class="label">↔ パン方式</div>
+              <div class="seg" id="modeSeg">
+                <button type="button" data-mode="level" class="active">レベルパン</button>
+                <button type="button" data-mode="delay">ディレイパン</button>
+              </div>
+            </div>
+
+            <div class="row" id="panRow">
+              <div class="row-head">
+                <span class="name" id="panLabel">左右レベル差 ΔL</span>
+                <span class="value" id="panValue">0 dB</span>
+              </div>
+              <div class="mode-level" id="levelWrap">
+                <input id="levelSlider" type="range" min="-18" max="18" step="0.5" value="0" />
+              </div>
+              <div class="mode-delay" id="delayWrap" style="display:none;">
+                <input id="delaySlider" type="range" min="-1.2" max="1.2" step="0.01" value="0" />
+              </div>
+              <div class="hintline"><span>左に寄る</span><span>中央</span><span>右に寄る</span></div>
+            </div>
+
+            <div class="row">
+              <div class="row-head">
+                <span class="name">音量</span>
+                <span class="value" id="masterValue">72%</span>
+              </div>
+              <input id="masterSlider" type="range" min="0" max="100" step="1" value="72" />
+            </div>
+
+            <div class="two-col" style="margin-top:18px;">
+              <div class="mini-panel">
+                <div class="mini-title">🌊 音源</div>
+                <div class="tabbar" id="sourceTabs">
+                  <button type="button" data-src="noise" class="active">ノイズ</button>
+                  <button type="button" data-src="click">クリック</button>
+                  <button type="button" data-src="burst">バースト</button>
+                  <button type="button" data-src="tone">トーン</button>
+                </div>
+                <p class="mini-desc" id="sourceDesc" style="margin-top:10px;">帯域の広いノイズ。定位の「寄り」を感じやすい定番。</p>
+              </div>
+
+              <div class="mini-panel">
+                <div class="mini-title">👂 聴き方のヒント</div>
+                <ul style="color:#475569; font-size:0.95rem;">
+                  <li>レベルパン：大きい側へ「音像」が滑る。</li>
+                  <li>ディレイパン：早く届く側へ引っ張られやすい。</li>
+                  <li>クリック / バーストで差が分かりやすい。</li>
+                  <li>スピーカーよりヘッドホンのほうが比較しやすい。</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="controls" style="margin-top:18px;">
+              <button type="button" id="playBtn" class="play">▶ 再生</button>
+              <button type="button" id="resetBtn" class="reset">⟲ リセット</button>
+            </div>
+            <div class="presetbar" style="margin-top:10px;">
+              <button type="button" id="pl">左へ（レベル）</button>
+              <button type="button" id="pr">右へ（レベル）</button>
+              <button type="button" id="dl">左へ（ディレイ）</button>
+              <button type="button" id="dr">右へ（ディレイ）</button>
+            </div>
+
+            <div class="warn" id="warnBox"></div>
+          </section>
+
+          <section class="section viz-wrap">
+            <div class="section-header" style="margin-bottom:8px;">
+              <div>
+                <h2>見える化</h2>
+                <p class="sub" style="margin-top:4px;">青 = レベル差での定位、橙 = 到達時間差での定位のイメージ</p>
+              </div>
+            </div>
+            <svg id="earViz" viewBox="0 0 320 180" aria-label="定位イメージ図" role="img">
+              <defs>
+                <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.15"></feDropShadow>
+                </filter>
+              </defs>
+              <rect x="0" y="0" width="320" height="180" fill="#f8fafc" stroke="#e2e8f0"></rect>
+              <text x="26" y="22" font-size="12" fill="#475569">左耳</text>
+              <text x="257" y="22" font-size="12" fill="#475569">右耳</text>
+              <ellipse cx="80" cy="92" rx="18" ry="28" fill="#fff" stroke="#334155" stroke-width="2"></ellipse>
+              <ellipse cx="240" cy="92" rx="18" ry="28" fill="#fff" stroke="#334155" stroke-width="2"></ellipse>
+              <line x1="98" y1="92" x2="222" y2="92" stroke="#cbd5e1" stroke-width="3"></line>
+              <circle id="srcBall" cx="160" cy="60" r="18" fill="#60a5fa" opacity="0.88" filter="url(#shadow)"></circle>
+              <text id="srcBallLabel" x="160" y="64" text-anchor="middle" font-size="12" fill="#0f172a" font-weight="700">音像</text>
+              <line id="rayL" x1="160" y1="78" x2="80" y2="84" stroke="#94a3b8" stroke-dasharray="4 4"></line>
+              <line id="rayR" x1="160" y1="78" x2="240" y2="84" stroke="#94a3b8" stroke-dasharray="4 4"></line>
+              <text id="vizText" x="160" y="150" text-anchor="middle" font-size="13" fill="#334155">左右のレベル差で定位を動かす（ΔL = 0 dB）</text>
+            </svg>
+          </section>
+        </div>
+
+        <div class="stack">
+          <section class="section">
+            <div class="section-header" style="margin-bottom:10px;">
+              <div>
+                <h2>現在の設定</h2>
+                <p class="sub" style="margin-top:4px;">耳に届く差を数値で確認できます</p>
+              </div>
+            </div>
+            <div class="status-grid">
+              <div class="status-box">
+                <div class="status-name">左チャンネル</div>
+                <div class="status-value" id="leftStatus">0.0 dB</div>
+              </div>
+              <div class="status-box">
+                <div class="status-name">右チャンネル</div>
+                <div class="status-value" id="rightStatus">0.0 dB</div>
+              </div>
+            </div>
+
+            <div class="info-box" style="margin-top:12px;">
+              <div class="info-title">ポイント</div>
+              <div class="info-text" id="pointText">左右の音量差（ILD）で音像を移動</div>
+              <div class="info-text" id="pointBody" style="margin-top:8px; color:#475569;">
+                ふつうのミキサーの PAN に近い考え方です。片側を大きく、反対側を小さくして、<b>大きい側</b>へ音像を寄せます。
+              </div>
+            </div>
+
+            <div class="info-box" style="margin-top:12px;">
+              <div class="info-title">おすすめの試し方</div>
+              <ol style="color:#334155; font-size:0.95rem;">
+                <li>まず <b>ノイズ</b> + <b>レベルパン</b> で ±6 dB を試す</li>
+                <li>次に <b>クリック</b> + <b>ディレイパン</b> で ±0.3 ms → ±0.6 ms</li>
+                <li><b>トーン</b>に変えて、ディレイパンが分かりにくくなることを確認</li>
+                <li>中央に戻して、どちらが「自然」に感じるか議論する</li>
+              </ol>
+            </div>
+
+            <div class="info-box darkbox" style="margin-top:12px;">
+              <div class="info-title">授業ネタにしやすい観点</div>
+              <ul>
+                <li>レベルパンはミキサーで即実務に結びつく</li>
+                <li>ディレイパンは定位と先行音効果の導入に使いやすい</li>
+                <li>音源によって「分かりやすさ」が変わるのが学習ポイント</li>
+              </ul>
+            </div>
+
+            <p class="footnote">※ ブラウザの仕様で、最初の音出しは <b>再生</b> ボタン操作後に開始されます。音が出ない場合は音量と出力先を確認してください。</p>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const $ = (id) => document.getElementById(id);
+      const state = {
+        mode: 'level',
+        sourceType: 'noise',
+        playing: false,
+        levelDb: 0,
+        delayMs: 0,
+        master: 72,
+        linkCenter: true,
+      };
+
+      const els = {
+        modeButtons: Array.from(document.querySelectorAll('#modeSeg button')),
+        sourceButtons: Array.from(document.querySelectorAll('#sourceTabs button')),
+        levelSlider: $('levelSlider'),
+        delaySlider: $('delaySlider'),
+        masterSlider: $('masterSlider'),
+        panLabel: $('panLabel'),
+        panValue: $('panValue'),
+        masterValue: $('masterValue'),
+        sourceDesc: $('sourceDesc'),
+        playBtn: $('playBtn'),
+        resetBtn: $('resetBtn'),
+        warnBox: $('warnBox'),
+        leftStatus: $('leftStatus'),
+        rightStatus: $('rightStatus'),
+        pointText: $('pointText'),
+        pointBody: $('pointBody'),
+        levelWrap: $('levelWrap'),
+        delayWrap: $('delayWrap'),
+        srcBall: $('srcBall'),
+        srcBallLabel: $('srcBallLabel'),
+        rayL: $('rayL'),
+        rayR: $('rayR'),
+        vizText: $('vizText'),
+      };
+
+      const sourceDescMap = {
+        noise: '帯域の広いノイズ。定位の「寄り」を感じやすい定番。',
+        click: '短いクリック列。ディレイパンの時間差を感じやすい。',
+        burst: '疑似的な子音っぽいバースト列。言葉に近い手掛かりを作る。',
+        tone: '単一周波数。レベル差は分かりやすいが、ディレイ差は曖昧になりやすい。',
+      };
+
+      const audio = {
+        ctx: null,
+        merger: null,
+        gainL: null,
+        gainR: null,
+        delayL: null,
+        delayR: null,
+        masterGain: null,
+        sourceNode: null,
+        sourceStop: null,
+      };
+
+      function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+      function dbToGain(db) { return Math.pow(10, db / 20); }
+      function formatSigned(value, digits = 1, suffix = '') {
+        const sign = value > 0 ? '+' : value < 0 ? '−' : '';
+        const abs = Math.abs(value).toFixed(digits);
+        return (value === 0 ? '0' : sign + abs) + suffix;
+      }
+      function safeLog10(x) { return Math.log10(Math.max(1e-9, x)); }
+      function setWarn(msg) {
+        if (!msg) {
+          els.warnBox.style.display = 'none';
+          els.warnBox.textContent = '';
+        } else {
+          els.warnBox.style.display = 'block';
+          els.warnBox.textContent = msg;
+        }
+      }
+
+      function buildNoiseBuffer(ctx, seconds = 2.0) {
+        const len = Math.floor(ctx.sampleRate * seconds);
+        const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const ch = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * 0.25;
+        return buf;
+      }
+
+      function buildClickBuffer(ctx, bpm = 100, seconds = 2.0) {
+        const len = Math.floor(ctx.sampleRate * seconds);
+        const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const ch = buf.getChannelData(0);
+        const interval = (60 / bpm) * ctx.sampleRate;
+        for (let p = 0; p < len; p += interval) {
+          const start = Math.floor(p);
+          const dur = Math.floor(ctx.sampleRate * 0.02);
+          for (let n = 0; n < dur && start + n < len; n++) {
+            const env = Math.exp(-n / (ctx.sampleRate * 0.004));
+            ch[start + n] += Math.sin((2 * Math.PI * 1200 * n) / ctx.sampleRate) * env * 0.6;
+          }
+        }
+        return buf;
+      }
+
+      function buildBurstBuffer(ctx, seconds = 2.0) {
+        const len = Math.floor(ctx.sampleRate * seconds);
+        const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const ch = buf.getChannelData(0);
+        const burstEvery = Math.floor(ctx.sampleRate * 0.22);
+        const burstLen = Math.floor(ctx.sampleRate * 0.08);
+        for (let p = 0; p < len; p += burstEvery) {
+          for (let n = 0; n < burstLen && p + n < len; n++) {
+            const env = Math.sin((Math.PI * n) / burstLen) ** 2;
+            const noise = (Math.random() * 2 - 1) * 0.35;
+            const tone = Math.sin((2 * Math.PI * 600 * n) / ctx.sampleRate) * 0.15;
+            ch[p + n] += (noise + tone) * env;
+          }
+        }
+        return buf;
+      }
+
+      function makeMonoSource(ctx, type) {
+        if (type === 'tone') {
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.value = 440;
+          return { node: osc, start: () => osc.start(), stop: () => osc.stop() };
+        }
+        const src = ctx.createBufferSource();
+        src.loop = true;
+        if (type === 'click') src.buffer = buildClickBuffer(ctx);
+        else if (type === 'burst') src.buffer = buildBurstBuffer(ctx);
+        else src.buffer = buildNoiseBuffer(ctx);
+        return { node: src, start: () => src.start(), stop: () => src.stop() };
+      }
+
+      async function ensureAudio() {
+        if (audio.ctx) return audio;
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) throw new Error('このブラウザは Web Audio API に対応していません。');
+        const ctx = new Ctx();
+        const merger = ctx.createChannelMerger(2);
+        const gainL = ctx.createGain();
+        const gainR = ctx.createGain();
+        const delayL = ctx.createDelay(0.05);
+        const delayR = ctx.createDelay(0.05);
+        const masterGain = ctx.createGain();
+        gainL.connect(delayL);
+        gainR.connect(delayR);
+        delayL.connect(merger, 0, 0);
+        delayR.connect(merger, 0, 1);
+        merger.connect(masterGain).connect(ctx.destination);
+        audio.ctx = ctx;
+        audio.merger = merger;
+        audio.gainL = gainL;
+        audio.gainR = gainR;
+        audio.delayL = delayL;
+        audio.delayR = delayR;
+        audio.masterGain = masterGain;
+        return audio;
+      }
+
+      function stopSource() {
+        try {
+          if (audio.sourceStop) audio.sourceStop();
+        } catch (_) {}
+        try {
+          if (audio.sourceNode) audio.sourceNode.disconnect();
+        } catch (_) {}
+        audio.sourceNode = null;
+        audio.sourceStop = null;
+      }
+
+      async function startSource() {
+        const a = await ensureAudio();
+        if (a.ctx.state === 'suspended') await a.ctx.resume();
+        stopSource();
+        const made = makeMonoSource(a.ctx, state.sourceType);
+        made.node.connect(a.gainL);
+        made.node.connect(a.gainR);
+        audio.sourceNode = made.node;
+        audio.sourceStop = made.stop;
+        made.start();
+      }
+
+      async function applyParams() {
+        try {
+          const a = await ensureAudio();
+          const now = a.ctx.currentTime;
+          const level = state.levelDb;
+          const delay = state.delayMs / 1000;
+          const m = state.master / 100;
+
+          let gL = 1, gR = 1, dL = 0, dR = 0;
+          if (state.mode === 'level') {
+            const half = level / 2;
+            gL = dbToGain(-half);
+            gR = dbToGain(+half);
+            if (state.linkCenter) {
+              const max = Math.max(gL, gR);
+              gL /= max;
+              gR /= max;
+            }
+          } else {
+            dL = Math.max(0, delay);
+            dR = Math.max(0, -delay);
+            gL = 1;
+            gR = 1;
+          }
+
+          a.gainL.gain.cancelScheduledValues(now);
+          a.gainR.gain.cancelScheduledValues(now);
+          a.delayL.delayTime.cancelScheduledValues(now);
+          a.delayR.delayTime.cancelScheduledValues(now);
+          a.masterGain.gain.cancelScheduledValues(now);
+
+          a.gainL.gain.setValueAtTime(a.gainL.gain.value, now);
+          a.gainR.gain.setValueAtTime(a.gainR.gain.value, now);
+          a.delayL.delayTime.setValueAtTime(a.delayL.delayTime.value, now);
+          a.delayR.delayTime.setValueAtTime(a.delayR.delayTime.value, now);
+          a.masterGain.gain.setValueAtTime(a.masterGain.gain.value, now);
+
+          a.gainL.gain.linearRampToValueAtTime(gL, now + 0.03);
+          a.gainR.gain.linearRampToValueAtTime(gR, now + 0.03);
+          a.delayL.delayTime.linearRampToValueAtTime(dL, now + 0.03);
+          a.delayR.delayTime.linearRampToValueAtTime(dR, now + 0.03);
+          a.masterGain.gain.linearRampToValueAtTime(m * 0.28, now + 0.03);
+        } catch (err) {
+          setWarn('音声パラメータの適用でエラーが発生しました。\n' + (err && err.message ? err.message : String(err)));
+        }
+      }
+
+      function computeEffective() {
+        if (state.mode === 'level') {
+          const half = state.levelDb / 2;
+          let l = dbToGain(-half);
+          let r = dbToGain(+half);
+          if (state.linkCenter) {
+            const max = Math.max(l, r);
+            l /= max;
+            r /= max;
+          }
+          return {
+            leftDb: 20 * safeLog10(l),
+            rightDb: 20 * safeLog10(r),
+            leftMs: 0,
+            rightMs: 0,
+            note: '左右の音量差（ILD）で音像を移動',
+          };
+        }
+        return {
+          leftDb: 0,
+          rightDb: 0,
+          leftMs: Math.max(0, state.delayMs),
+          rightMs: Math.max(0, -state.delayMs),
+          note: '左右の到達時間差（ITD）で音像を移動',
+        };
+      }
+
+      function renderViz() {
+        const leftX = 80;
+        const rightX = 240;
+        const cy = 92;
+        const baseX = 160;
+        const posX = state.mode === 'level'
+          ? baseX + clamp(state.levelDb, -18, 18) * 3.2
+          : baseX + clamp(state.delayMs, -1.2, 1.2) * 48;
+        const sourceR = state.mode === 'level'
+          ? 18 + Math.abs(state.levelDb) * 0.55
+          : 18 + Math.abs(state.delayMs) * 9;
+        els.srcBall.setAttribute('cx', String(posX));
+        els.srcBall.setAttribute('r', String(sourceR));
+        els.srcBall.setAttribute('fill', state.mode === 'level' ? '#60a5fa' : '#f59e0b');
+        els.srcBallLabel.setAttribute('x', String(posX));
+        els.rayL.setAttribute('x1', String(posX));
+        els.rayR.setAttribute('x1', String(posX));
+        els.vizText.textContent = state.mode === 'level'
+          ? `左右のレベル差で定位を動かす（ΔL = ${formatSigned(state.levelDb, 1, ' dB')}）`
+          : `左右の到達時間差で定位を動かす（Δt = ${formatSigned(state.delayMs, 2, ' ms')}）`;
+      }
+
+      function render() {
+        document.body.classList.toggle('delay-mode', state.mode === 'delay');
+        document.getElementById('controlSection').classList.toggle('mode-delay', state.mode === 'delay');
+        els.modeButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === state.mode));
+        els.sourceButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.src === state.sourceType));
+        els.sourceDesc.textContent = sourceDescMap[state.sourceType] || '';
+
+        if (state.mode === 'level') {
+          els.panLabel.textContent = '左右レベル差 ΔL';
+          els.panValue.textContent = formatSigned(state.levelDb, 1, ' dB');
+          els.levelWrap.style.display = '';
+          els.delayWrap.style.display = 'none';
+        } else {
+          els.panLabel.textContent = '左右到達差 Δt';
+          els.panValue.textContent = formatSigned(state.delayMs, 2, ' ms');
+          els.levelWrap.style.display = 'none';
+          els.delayWrap.style.display = '';
+        }
+        els.masterValue.textContent = state.master + '%';
+
+        const e = computeEffective();
+        if (state.mode === 'level') {
+          els.leftStatus.textContent = e.leftDb.toFixed(1) + ' dB';
+          els.rightStatus.textContent = e.rightDb.toFixed(1) + ' dB';
+          els.pointText.textContent = e.note;
+          els.pointBody.innerHTML = 'ふつうのミキサーの PAN に近い考え方です。片側を大きく、反対側を小さくして、<b>大きい側</b>へ音像を寄せます。';
+        } else {
+          els.leftStatus.textContent = e.leftMs.toFixed(2) + ' ms 遅延';
+          els.rightStatus.textContent = e.rightMs.toFixed(2) + ' ms 遅延';
+          els.pointText.textContent = e.note;
+          els.pointBody.innerHTML = '左右のレベルは同じでも、<b>早く届く側</b>へ音像が引っ張られて感じられます。短い音や立ち上がりの速い音で分かりやすいです。';
+        }
+        els.playBtn.textContent = state.playing ? '■ 停止' : '▶ 再生';
+        els.playBtn.className = state.playing ? 'stop' : 'play';
+        renderViz();
+      }
+
+      function setMode(mode) {
+        state.mode = mode;
+        render();
+        applyParams();
+      }
+      function setSourceType(sourceType) {
+        state.sourceType = sourceType;
+        render();
+        if (state.playing) {
+          startSource().then(applyParams).catch(err => setWarn('再生開始に失敗しました。\n' + (err && err.message ? err.message : String(err))));
+        }
+      }
+      function resetAll() {
+        state.mode = 'level';
+        state.sourceType = 'noise';
+        state.levelDb = 0;
+        state.delayMs = 0;
+        state.master = 72;
+        els.levelSlider.value = '0';
+        els.delaySlider.value = '0';
+        els.masterSlider.value = '72';
+        render();
+        applyParams();
+      }
+
+      async function togglePlay() {
+        try {
+          setWarn('');
+          if (state.playing) {
+            stopSource();
+            state.playing = false;
+            render();
+          } else {
+            await startSource();
+            await applyParams();
+            state.playing = true;
+            render();
+          }
+        } catch (err) {
+          state.playing = false;
+          render();
+          setWarn('再生に失敗しました。\n' + (err && err.message ? err.message : String(err)) + '\n\nブラウザやOSの出力先設定も確認してください。');
+        }
+      }
+
+      function wire() {
+        els.modeButtons.forEach(btn => btn.addEventListener('click', () => setMode(btn.dataset.mode)));
+        els.sourceButtons.forEach(btn => btn.addEventListener('click', () => setSourceType(btn.dataset.src)));
+        els.levelSlider.addEventListener('input', () => {
+          state.levelDb = Number(els.levelSlider.value);
+          render();
+          applyParams();
+        });
+        els.delaySlider.addEventListener('input', () => {
+          state.delayMs = Number(els.delaySlider.value);
+          render();
+          applyParams();
+        });
+        els.masterSlider.addEventListener('input', () => {
+          state.master = Number(els.masterSlider.value);
+          render();
+          applyParams();
+        });
+        els.playBtn.addEventListener('click', togglePlay);
+        els.resetBtn.addEventListener('click', resetAll);
+        $('pl').addEventListener('click', () => { state.mode = 'level'; state.levelDb = -9; els.levelSlider.value = '-9'; render(); applyParams(); });
+        $('pr').addEventListener('click', () => { state.mode = 'level'; state.levelDb = 9; els.levelSlider.value = '9'; render(); applyParams(); });
+        $('dl').addEventListener('click', () => { state.mode = 'delay'; state.delayMs = -0.45; els.delaySlider.value = '-0.45'; render(); applyParams(); });
+        $('dr').addEventListener('click', () => { state.mode = 'delay'; state.delayMs = 0.45; els.delaySlider.value = '0.45'; render(); applyParams(); });
+        window.addEventListener('beforeunload', () => {
+          try { stopSource(); } catch (_) {}
+          try { if (audio.ctx) audio.ctx.close(); } catch (_) {}
+        });
+      }
+
+      wire();
+      render();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,1416 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>遅延×周波数×波形加算</title>
+  <style>
+    :root{
+      --ink:#e8eeff; --muted:#a9b4d6; --grid:#22305a;
+      --blue:#4da3ff; --orange:#ffb14d; --green:#4dff88; --danger:#ff4d6d;
+      --panel: rgba(7,10,20,.55);
+      --stroke: rgba(120,150,255,.12);
+      --bg: rgba(7,10,20,.65);
+    }
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+      background:linear-gradient(180deg,#070a14, #0b1020 40%, #070a14);
+      color:var(--ink);
+    }
+    .wrap{max-width:1220px;margin:0 auto;padding:16px;}
+    h1{font-size:18px;margin:6px 0 14px 0;}
+    .grid{display:grid;grid-template-columns:560px 1fr;gap:12px;}
+    .card{
+      background:rgba(17,26,51,.92);
+      border:1px solid rgba(120,150,255,.14);
+      border-radius:18px;
+      box-shadow:0 10px 30px rgba(0,0,0,.35);
+      overflow:hidden;
+    }
+    .card header{
+      padding:12px 14px;
+      border-bottom:1px solid rgba(120,150,255,.12);
+      display:flex;align-items:center;justify-content:space-between;
+      gap:10px;
+    }
+    .ttl{font-weight:700;font-size:13px;color:var(--muted)}
+    .body{padding:12px 14px;}
+    .row{display:flex;gap:10px;align-items:center;margin:10px 0;}
+    .row label{width:150px;font-size:12px;color:var(--muted)}
+    input[type="range"]{width:100%;}
+    input[type="number"]{
+      width:120px;padding:8px 10px;border-radius:12px;
+      border:1px solid rgba(120,150,255,.18);
+      background:rgba(7,10,20,.45);color:var(--ink);
+      font-variant-numeric:tabular-nums;outline:none;
+    }
+    .val{width:140px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px}
+    .btn{
+      background:#1a2a55;color:var(--ink);
+      border:1px solid rgba(120,150,255,.18);
+      padding:10px 12px;border-radius:14px;cursor:pointer;font-weight:700;
+      user-select:none;
+    }
+    .btn.primary{background:linear-gradient(180deg,#2c4cff,#1b2a66);border-color:rgba(120,150,255,.35)}
+    .btn.danger{background:linear-gradient(180deg,#ff4d6d,#7a1c35);border-color:rgba(255,77,109,.5)}
+    .btn.small{padding:8px 10px;border-radius:12px;font-size:12px}
+    .btn.ghost{background:rgba(26,42,85,.35)}
+    .btn.active{
+      outline:2px solid rgba(77,163,255,.55);
+      border-color:rgba(77,163,255,.55);
+    }
+    .pill{
+      padding:5px 8px;border-radius:999px;font-size:12px;
+      background:rgba(77,163,255,.12);
+      border:1px solid rgba(77,163,255,.25);
+      color:var(--blue);
+      max-width:95ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    }
+    .tabs{display:flex; gap:8px; padding:10px 12px 0 12px; flex-wrap:wrap;}
+    .tabBtn{
+      padding:8px 10px; border-radius:12px; font-size:12px; font-weight:800;
+      background:rgba(26,42,85,.35);
+      border:1px solid rgba(120,150,255,.18);
+      color:rgba(232,238,255,.9);
+      cursor:pointer; user-select:none;
+    }
+    .tabBtn.on{
+      background:linear-gradient(180deg,#2c4cff,#1b2a66);
+      border-color:rgba(120,150,255,.35);
+    }
+    .tabPanel{display:none;}
+    .tabPanel.on{display:block;}
+    .legend{display:flex;gap:12px;flex-wrap:wrap;padding:10px 14px 0 14px;color:var(--muted);font-size:12px}
+    .key{display:flex;align-items:center;gap:8px}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .dot.blue{background:var(--blue)}
+    .dot.orange{background:var(--orange)}
+    .dot.green{background:var(--green)}
+    .dot.white{background:#e8eeff}
+    .dot.gray{background:#a9b4d6}
+    canvas{width:100%;height:260px;display:block;background:var(--bg);}
+    .canWrap{padding:10px 12px;}
+    .small{font-size:12px;color:var(--muted);line-height:1.6}
+    .kpiWrap{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+    .kpi{
+      padding:10px 12px;background:var(--panel);
+      border:1px solid var(--stroke);
+      border-radius:14px;
+    }
+    .kpi .k{font-size:11px;color:var(--muted)}
+    .kpi .v{font-size:14px;font-variant-numeric:tabular-nums;margin-top:4px}
+    .log{
+      margin-top:10px;
+      background:var(--panel);
+      border:1px solid var(--stroke);
+      border-radius:14px;
+      padding:10px 12px;
+      font-size:12px;
+      color:rgba(232,238,255,.86);
+      max-height:150px;
+      overflow:auto;
+      white-space:pre-wrap;
+      line-height:1.4;
+    }
+    .group{
+      margin-top:10px;
+      background:var(--panel);
+      border:1px solid var(--stroke);
+      border-radius:14px;
+      padding:10px 12px;
+    }
+    .groupTitle{
+      font-size:12px;
+      color:rgba(232,238,255,.85);
+      margin-bottom:8px;
+      font-weight:700;
+    }
+    .btnRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .hintLine{margin-top:8px;font-size:12px;color:var(--muted);line-height:1.55}
+    .badge{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:3px 8px;border-radius:999px;
+      border:1px solid rgba(120,150,255,.18);
+      background:rgba(7,10,20,.35);
+      font-size:12px;color:rgba(232,238,255,.85);
+      font-variant-numeric:tabular-nums;
+    }
+    .warn{
+      color: #ffd36a;
+      border-color: rgba(255,211,106,.45);
+      background: rgba(255,211,106,.10);
+    }
+    .danger{
+      color: #ff4d6d;
+      border-color: rgba(255,77,109,.45);
+      background: rgba(255,77,109,.10);
+    }
+    @media (max-width:980px){.grid{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>遅延 × 周波数 × 波形加算</h1>
+
+  <div class="grid">
+    <!-- Controls -->
+    <section class="card">
+      <header>
+        <div class="ttl">操作</div>
+        <div class="pill" id="audioState">Audio: stopped</div>
+      </header>
+      <div class="body">
+
+        <div class="row" style="justify-content:space-between; gap:10px; align-items:stretch;">
+          <button class="btn primary" id="btnStart" type="button">Start Audio</button>
+          <button class="btn danger" id="btnStop" type="button" disabled>Stop</button>
+          <button class="btn" id="btnReset" type="button">Reset Audio</button>
+        </div>
+
+        <!-- Beginner guided presets -->
+        <div class="group">
+          <div class="groupTitle">実験プリセット（新人向け）</div>
+          <div class="btnRow">
+            <button class="btn small ghost" id="pre0" type="button">同相（0°）</button>
+            <button class="btn small ghost" id="pre90" type="button">90°</button>
+            <button class="btn small ghost" id="pre180" type="button">逆相（180°）</button>
+            <button class="btn small ghost" id="preComb" type="button">コム体験（τ=3ms）</button>
+            <span class="badge" id="presetBadge">Preset: なし</span>
+          </div>
+          <div class="hintLine" id="stepHint">
+            まずは <b>同相→90°→180°</b> の順。次に <b>コム体験</b>（コムタブへ移動）で <b>Δf=1/τ</b> を確認。
+          </div>
+        </div>
+
+        <!-- Frequency -->
+        <div class="row" style="align-items:flex-start;">
+          <label style="padding-top:8px;">周波数 f</label>
+          <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+            <input type="range" id="freq" min="0" max="1000" value="0" />
+            <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="number" id="freqNum" min="20" max="10000" step="1" value="1000" />
+                <button class="btn small" id="btn1k" type="button">1kHz</button>
+              </div>
+              <div class="val" id="freqVal">---</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Delay -->
+        <div class="row">
+          <label>遅延 τ</label>
+          <input type="range" id="delay" min="0" max="20" step="0.01" value="0.50" />
+          <div class="val" id="delayVal">---</div>
+        </div>
+
+        <!-- Mix -->
+        <div class="row">
+          <label>遅延側 r</label>
+          <input type="range" id="mix" min="0" max="1" step="0.001" value="1.0" />
+          <div class="val" id="mixVal">---</div>
+        </div>
+
+        <!-- Auto compensation ON/OFF -->
+        <div class="row">
+          <label>自動補償</label>
+          <input type="range" id="comp" min="0" max="1" step="1" value="1" />
+          <div class="val" id="compVal">---</div>
+        </div>
+
+        <!-- Output -->
+        <div class="row">
+          <label>出力</label>
+          <input type="range" id="out" min="-60" max="0" step="0.1" value="-12" />
+          <div class="val" id="outVal">---</div>
+        </div>
+
+        <!-- Time window -->
+        <div class="row">
+          <label>時間窓（ms）</label>
+          <input type="range" id="timeWin" min="0.5" max="50" step="0.1" value="10" />
+          <div class="val" id="timeWinVal">---</div>
+        </div>
+
+        <!-- Cycle-based time window buttons -->
+        <div class="group" style="margin-top:6px;">
+          <div class="groupTitle">周期ベース時間窓（1/f同期）</div>
+          <div class="btnRow">
+            <button class="btn small ghost" id="tw1" type="button">1周期</button>
+            <button class="btn small ghost" id="tw3" type="button">3周期</button>
+            <button class="btn small ghost" id="tw10" type="button">10周期</button>
+            <button class="btn small ghost" id="twMs" type="button">ms固定（手動）</button>
+            <span class="badge" id="twBadge">TimeWin: ms固定</span>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <label>固定表示（位相ロック）</label>
+            <input type="range" id="phaseLock" min="0" max="1" step="1" value="1" />
+            <div class="val" id="phaseLockVal">ON</div>
+          </div>
+          <div class="hintLine">
+            固定表示ONは<b>上りゼロクロス</b>で切り出すので波形が流れません（基準：原信号）。
+          </div>
+        </div>
+
+        <!-- KPI -->
+        <div class="kpiWrap">
+          <div class="kpi">
+            <div class="k">実測周波数（推定）</div>
+            <div class="v" id="measHz">---</div>
+          </div>
+          <div class="kpi">
+            <div class="k">差分 Δ（実測 − 設定）</div>
+            <div class="v" id="measDelta">---</div>
+          </div>
+        </div>
+
+        <div class="group" style="margin-top:10px;">
+          <div class="groupTitle">安全表示</div>
+          <div class="btnRow">
+            <span class="badge" id="clipBadge">CLIP: ---</span>
+            <span class="badge" id="fftBadge">FFT: ---</span>
+          </div>
+          <div class="hintLine">
+            コムタブでは<b>ピンクノイズ</b>に自動切替し、<b>理論（緑）＋FFT（白）</b>を重ねます。Startが効かない場合はログ参照。困ったら<b>Reset Audio</b>。
+          </div>
+        </div>
+
+        <div class="log" id="log"></div>
+      </div>
+    </section>
+
+    <!-- Visuals -->
+    <section class="card">
+      <header>
+        <div class="ttl">可視化</div>
+        <div class="pill" id="srInfo">SR: ---</div>
+      </header>
+
+      <div class="tabs">
+        <button class="tabBtn on" id="tabBtnMain" type="button">位相・加算</button>
+        <button class="tabBtn" id="tabBtnComb" type="button">コムフィルター（Pink+FFT）</button>
+      </div>
+
+      <!-- Main -->
+      <div class="tabPanel on" id="tabMain">
+        <div class="legend">
+          <div class="key"><span class="dot blue"></span>原信号</div>
+          <div class="key"><span class="dot orange"></span>遅延信号</div>
+          <div class="key"><span class="dot green"></span>合成（補償後）</div>
+        </div>
+        <div class="canWrap">
+          <canvas id="wave" width="980" height="260"></canvas>
+        </div>
+        <div class="canWrap" style="padding-top:0;">
+          <canvas id="phasor" width="980" height="260"></canvas>
+        </div>
+      </div>
+
+      <!-- Comb -->
+      <div class="tabPanel" id="tabComb">
+        <div class="legend">
+          <div class="key"><span class="dot green"></span>理論 H(f) [dB]</div>
+          <div class="key"><span class="dot white"></span>実測 FFT（出力）[dB]（整列）</div>
+          <div class="key"><span class="dot gray"></span>入力FFT（任意）</div>
+        </div>
+
+        <div class="canWrap">
+          <canvas id="comb" width="980" height="300" style="height:300px;"></canvas>
+        </div>
+
+        <div class="body" style="padding-top:0;">
+          <div class="group" style="margin-top:0;">
+            <div class="groupTitle">コム表示オプション</div>
+            <div class="btnRow">
+              <button class="btn small ghost active" id="fftOn" type="button">FFT ON</button>
+              <button class="btn small ghost active" id="alignOn" type="button">整列 ON（縦オフセット）</button>
+              <button class="btn small ghost" id="inOn" type="button">入力FFT OFF</button>
+              <span class="badge" id="combBadge">Pink Noise: ON（タブ連動）</span>
+            </div>
+            <div class="hintLine" id="combInfo">τを変えると山谷の間隔が変化します。基本間隔は <b>Δf=1/τ</b> です。</div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- Utilities ----------
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const dbToGain = (db) => Math.pow(10, db/20);
+  const gainToDb = (g) => 20 * Math.log10(Math.max(1e-12, g));
+  const nowStr = () => new Date().toLocaleTimeString();
+
+  function sliderToFreq(x){
+    const t = x/1000;
+    const fMin = 20, fMax = 10000;
+    return fMin * Math.pow(fMax/fMin, t);
+  }
+  function freqToSlider(f){
+    const fMin = 20, fMax = 10000;
+    f = clamp(f, fMin, fMax);
+    const t = Math.log(f/fMin) / Math.log(fMax/fMin);
+    return t * 1000;
+  }
+  const msPerCycle = (fHz) => 1000 / Math.max(1e-9, fHz);
+  const logSpace = (min, max, t) => min * Math.pow(max/min, t);
+
+  function median(arr){
+    if(!arr || !arr.length) return 0;
+    const tmp = Array.from(arr).sort((a,b)=>a-b);
+    const m = Math.floor(tmp.length/2);
+    return (tmp.length%2) ? tmp[m] : 0.5*(tmp[m-1]+tmp[m]);
+  }
+
+  // ---------- UI ----------
+  const el = {
+    btnStart: document.getElementById('btnStart'),
+    btnStop: document.getElementById('btnStop'),
+    btnReset: document.getElementById('btnReset'),
+    btn1k: document.getElementById('btn1k'),
+    audioState: document.getElementById('audioState'),
+    srInfo: document.getElementById('srInfo'),
+    log: document.getElementById('log'),
+
+    pre0: document.getElementById('pre0'),
+    pre90: document.getElementById('pre90'),
+    pre180: document.getElementById('pre180'),
+    preComb: document.getElementById('preComb'),
+    presetBadge: document.getElementById('presetBadge'),
+    stepHint: document.getElementById('stepHint'),
+
+    tw1: document.getElementById('tw1'),
+    tw3: document.getElementById('tw3'),
+    tw10: document.getElementById('tw10'),
+    twMs: document.getElementById('twMs'),
+    twBadge: document.getElementById('twBadge'),
+    phaseLock: document.getElementById('phaseLock'),
+    phaseLockVal: document.getElementById('phaseLockVal'),
+
+    freq: document.getElementById('freq'),
+    freqNum: document.getElementById('freqNum'),
+    delay: document.getElementById('delay'),
+    mix: document.getElementById('mix'),
+    comp: document.getElementById('comp'),
+    out: document.getElementById('out'),
+    timeWin: document.getElementById('timeWin'),
+
+    freqVal: document.getElementById('freqVal'),
+    delayVal: document.getElementById('delayVal'),
+    mixVal: document.getElementById('mixVal'),
+    compVal: document.getElementById('compVal'),
+    outVal: document.getElementById('outVal'),
+    timeWinVal: document.getElementById('timeWinVal'),
+
+    measHz: document.getElementById('measHz'),
+    measDelta: document.getElementById('measDelta'),
+
+    clipBadge: document.getElementById('clipBadge'),
+    fftBadge: document.getElementById('fftBadge'),
+
+    tabBtnMain: document.getElementById('tabBtnMain'),
+    tabBtnComb: document.getElementById('tabBtnComb'),
+    tabMain: document.getElementById('tabMain'),
+    tabComb: document.getElementById('tabComb'),
+
+    wave: document.getElementById('wave'),
+    phasor: document.getElementById('phasor'),
+    comb: document.getElementById('comb'),
+
+    combInfo: document.getElementById('combInfo'),
+    combBadge: document.getElementById('combBadge'),
+    fftOn: document.getElementById('fftOn'),
+    alignOn: document.getElementById('alignOn'),
+    inOn: document.getElementById('inOn'),
+  };
+
+  let activeTab = 'main';
+  function setTab(name){
+    activeTab = name;
+    const onMain = (name === 'main');
+    el.tabBtnMain.classList.toggle('on', onMain);
+    el.tabBtnComb.classList.toggle('on', !onMain);
+    el.tabMain.classList.toggle('on', onMain);
+    el.tabComb.classList.toggle('on', !onMain);
+
+    // running中なら音源切替（コム=Pink / Main=Osc）
+    if(ac && ac.state === 'running'){
+      setSourceMode(name === 'comb' ? 'pink' : 'osc');
+    }
+    updateStepHint();
+  }
+  el.tabBtnMain.addEventListener('click', ()=>setTab('main'));
+  el.tabBtnComb.addEventListener('click', ()=>setTab('comb'));
+
+  function updateStepHint(){
+    if(activeTab === 'main'){
+      el.stepHint.innerHTML = `まずは <b>同相→90°→180°</b> の順。位相差で合成振幅が変わるのを確認。`;
+    }else{
+      el.stepHint.innerHTML = `コムタブ：<b>τを変える→山谷の間隔Δf=1/τが変化</b>。理論（緑）とFFT（白）を見比べる。`;
+    }
+  }
+
+  function log(msg, type='info'){
+    const prefix = type === 'err' ? '❌' : (type === 'warn' ? '⚠️' : 'ℹ️');
+    const line = `[${nowStr()}] ${prefix} ${msg}`;
+    el.log.textContent = (line + '\n' + el.log.textContent).slice(0, 8000);
+    if(type==='err') console.error(msg);
+    else if(type==='warn') console.warn(msg);
+    else console.log(msg);
+  }
+  function setUiRunning(on){
+    el.btnStart.disabled = on;
+    el.btnStop.disabled = !on;
+  }
+  function setState(text, ok=true){
+    el.audioState.textContent = text;
+    el.audioState.style.background = ok ? 'rgba(77,255,136,.12)' : 'rgba(255,77,109,.12)';
+    el.audioState.style.borderColor = ok ? 'rgba(77,255,136,.25)' : 'rgba(255,77,109,.25)';
+    el.audioState.style.color = ok ? '#4dff88' : '#ff4d6d';
+  }
+
+  window.addEventListener('error', (e)=> log(`window.onerror: ${e.message} @ ${e.filename}:${e.lineno}`, 'err'));
+  window.addEventListener('unhandledrejection', (e)=> log(`unhandledrejection: ${e.reason?.message ?? e.reason}`, 'err'));
+
+  // ---------- Cycle time-window state ----------
+  let timeWinMode = 'ms';
+  let timeWinCycles = 3;
+  let timeWinClampedNote = '';
+
+  function currentF(){ return sliderToFreq(parseFloat(el.freq.value)); }
+  function srForLimits(){ return ac ? ac.sampleRate : 48000; }
+
+  const fftSize = 2048;
+  function maxWindowMsAllowed(){
+    const sr = srForLimits();
+    return (Math.max(32, fftSize - 4) / sr) * 1000;
+  }
+  function updateTimeWinButtons(){
+    const active = (btn, on) => btn.classList.toggle('active', !!on);
+    active(el.tw1, timeWinMode==='cycles' && timeWinCycles===1);
+    active(el.tw3, timeWinMode==='cycles' && timeWinCycles===3);
+    active(el.tw10, timeWinMode==='cycles' && timeWinCycles===10);
+    active(el.twMs, timeWinMode==='ms');
+    const note = timeWinClampedNote ? ` ${timeWinClampedNote}` : '';
+    el.twBadge.textContent = (timeWinMode==='cycles')
+      ? `TimeWin: ${timeWinCycles}周期${note}`
+      : `TimeWin: ms固定${note}`;
+  }
+  function syncTimeWinToCycles(){
+    const f = currentF();
+    let ms = timeWinCycles * msPerCycle(f);
+    const minMs = parseFloat(el.timeWin.min);
+    const maxMs = parseFloat(el.timeWin.max);
+    const maxAllowed = maxWindowMsAllowed();
+    timeWinClampedNote = '';
+    const targetMax = Math.min(maxMs, maxAllowed);
+    if(ms > targetMax){ ms = targetMax; timeWinClampedNote = '(上限)'; }
+    else if(ms < minMs){ ms = minMs; timeWinClampedNote = '(下限)'; }
+    el.timeWin.value = `${ms.toFixed(1)}`;
+    updateTimeWinButtons();
+  }
+  function setTimeWinMode(mode, cycles=null){
+    timeWinMode = mode;
+    if(cycles != null) timeWinCycles = cycles;
+    updateTimeWinButtons();
+    if(mode === 'cycles') syncTimeWinToCycles();
+    else { timeWinClampedNote = ''; updateTimeWinButtons(); }
+  }
+
+  // ---------- Comb options ----------
+  let combFftOn = true;
+  let combAlignOn = true;
+  let combShowInput = false;
+  function updateCombButtons(){
+    el.fftOn.classList.toggle('active', combFftOn);
+    el.alignOn.classList.toggle('active', combAlignOn);
+    el.inOn.classList.toggle('active', combShowInput);
+    el.fftOn.textContent = combFftOn ? 'FFT ON' : 'FFT OFF';
+    el.alignOn.textContent = combAlignOn ? '整列 ON（縦オフセット）' : '整列 OFF';
+    el.inOn.textContent = combShowInput ? '入力FFT ON' : '入力FFT OFF';
+  }
+  el.fftOn.addEventListener('click', ()=>{ combFftOn = !combFftOn; updateCombButtons(); });
+  el.alignOn.addEventListener('click', ()=>{ combAlignOn = !combAlignOn; updateCombButtons(); });
+  el.inOn.addEventListener('click', ()=>{ combShowInput = !combShowInput; updateCombButtons(); });
+  updateCombButtons();
+
+  // ---------- Audio graph ----------
+  let ac=null, osc=null, noiseSrc=null;
+  let gSrcOsc=null, gSrcNoise=null, srcMix=null;
+  let gDry=null, delayNode=null, gWet=null, sum=null, gComp=null, gOut=null;
+  let limiter=null;
+
+  let analyserDry=null, analyserWet=null, analyserSum=null, analyserIn=null;
+
+  const bufDry = new Uint8Array(fftSize);
+  const bufWet = new Uint8Array(fftSize);
+  const bufSum = new Uint8Array(fftSize);
+
+  // FFT buffers + EMA smoothing
+  let fftOut=null, fftIn=null;
+  let fftOutEma=null, fftInEma=null;
+  let lastFftUpdate=0;
+
+  // Cached alignment offsets (computed on updateFft)
+  let outBandMedian = 0;
+  let inBandMedian  = 0;
+  let fftReady = false;
+
+  // measured freq smoothing (time domain)
+  let measHzSmooth=null;
+  let lastMeasUpdate=0;
+
+  let starting=false;
+
+  const FFT_DB_FLOOR = -120;    // sanitize -Infinity
+  const FFT_UPDATE_MS = 50;     // ~20Hz for stable display
+  const FFT_EMA_ALPHA = 0.22;   // smoothing for display
+
+  function teardownAudio(){
+    try{ if(osc){ try{ osc.stop(); }catch(_){} } }catch(_){}
+    try{ if(noiseSrc){ try{ noiseSrc.stop(); }catch(_){} } }catch(_){}
+    osc=null; noiseSrc=null;
+    gSrcOsc=null; gSrcNoise=null; srcMix=null;
+    gDry=null; delayNode=null; gWet=null; sum=null; gComp=null; gOut=null;
+    limiter=null;
+    analyserDry=null; analyserWet=null; analyserSum=null; analyserIn=null;
+    fftOut=null; fftIn=null; fftOutEma=null; fftInEma=null;
+    fftReady=false;
+  }
+  async function closeAudio(){
+    if(!ac) return;
+    try{
+      await ac.close();
+      log('AudioContext closed', 'info');
+    }catch(err){
+      log(`AudioContext close failed: ${err?.message ?? err}`, 'warn');
+    }
+    ac=null;
+    teardownAudio();
+    el.srInfo.textContent = 'SR: ---';
+    measHzSmooth=null;
+    el.measHz.textContent='---';
+    el.measDelta.textContent='---';
+    el.fftBadge.textContent = 'FFT: ---';
+    if(timeWinMode==='cycles') syncTimeWinToCycles();
+  }
+
+  // Pink noise buffer generator (Paul Kellet approximation)
+  function createPinkNoiseBuffer(ac, seconds=10){
+    const sr = ac.sampleRate;
+    const length = Math.max(1, Math.floor(sr * seconds));
+    const buffer = ac.createBuffer(1, length, sr);
+    const data = buffer.getChannelData(0);
+    let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+    for(let i=0;i<length;i++){
+      const white = (Math.random()*2 - 1);
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      const pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+      b6 = white * 0.115926;
+      data[i] = pink;
+    }
+    return buffer;
+  }
+
+  function ensureAudio(){
+    if(ac) return;
+
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+
+    // sources
+    osc = ac.createOscillator();
+    osc.type = 'sine';
+
+    noiseSrc = ac.createBufferSource();
+    noiseSrc.buffer = createPinkNoiseBuffer(ac, 10);
+    noiseSrc.loop = true;
+
+    gSrcOsc = ac.createGain();
+    gSrcNoise = ac.createGain();
+    srcMix = ac.createGain();
+
+    gSrcOsc.gain.value = 1.0;
+    gSrcNoise.gain.value = 0.0; // start osc
+    srcMix.gain.value = 1.0;
+
+    osc.connect(gSrcOsc);
+    noiseSrc.connect(gSrcNoise);
+    gSrcOsc.connect(srcMix);
+    gSrcNoise.connect(srcMix);
+
+    // processing
+    gDry = ac.createGain();
+    delayNode = ac.createDelay(0.05); // 50ms
+    gWet = ac.createGain();
+    sum = ac.createGain();
+    gComp = ac.createGain();
+    gOut = ac.createGain();
+
+    // limiter (safety)
+    limiter = ac.createDynamicsCompressor();
+    limiter.threshold.setValueAtTime(-8, ac.currentTime);
+    limiter.knee.setValueAtTime(0, ac.currentTime);
+    limiter.ratio.setValueAtTime(20, ac.currentTime);
+    limiter.attack.setValueAtTime(0.003, ac.currentTime);
+    limiter.release.setValueAtTime(0.25, ac.currentTime);
+
+    analyserDry = ac.createAnalyser();
+    analyserWet = ac.createAnalyser();
+    analyserSum = ac.createAnalyser();
+    analyserIn  = ac.createAnalyser();
+
+    [analyserDry, analyserWet, analyserSum, analyserIn].forEach(a=>{
+      a.fftSize = fftSize;
+      a.smoothingTimeConstant = 0.0;
+    });
+    // FFTの見やすさ（周波数領域の見た目）
+    analyserSum.smoothingTimeConstant = 0.78;
+    analyserIn.smoothingTimeConstant  = 0.78;
+
+    // connect: srcMix -> analyserIn -> dry+delay -> sum -> comp -> out -> limiter -> analyserSum -> destination
+    srcMix.connect(analyserIn);
+    srcMix.connect(gDry);
+    srcMix.connect(delayNode);
+
+    gDry.connect(analyserDry);
+    delayNode.connect(gWet);
+    gWet.connect(analyserWet);
+
+    gDry.connect(sum);
+    gWet.connect(sum);
+
+    sum.connect(gComp);
+    gComp.connect(gOut);
+    gOut.connect(limiter);
+
+    limiter.connect(analyserSum);
+    limiter.connect(ac.destination);
+
+    osc.start();
+    noiseSrc.start();
+
+    fftOut = new Float32Array(analyserSum.frequencyBinCount);
+    fftIn  = new Float32Array(analyserIn.frequencyBinCount);
+    fftOutEma = new Float32Array(analyserSum.frequencyBinCount);
+    fftInEma  = new Float32Array(analyserIn.frequencyBinCount);
+    fftOutEma.fill(FFT_DB_FLOOR);
+    fftInEma.fill(FFT_DB_FLOOR);
+    fftReady = false;
+
+    el.srInfo.textContent = `SR: ${ac.sampleRate} Hz`;
+    log(`AudioContext created: state=${ac.state}, SR=${ac.sampleRate}`, 'info');
+
+    if(timeWinMode==='cycles') syncTimeWinToCycles();
+
+    // initial source per tab
+    setSourceMode(activeTab === 'comb' ? 'pink' : 'osc', true);
+  }
+
+  function setSourceMode(mode, immediate=false){
+    if(!ac) return;
+    const t = ac.currentTime;
+    const fade = immediate ? 0.001 : 0.02;
+    if(mode === 'pink'){
+      gSrcOsc.gain.setTargetAtTime(0.0, t, fade);
+      gSrcNoise.gain.setTargetAtTime(0.35, t, fade);
+      el.combBadge.textContent = 'Pink Noise: ON（タブ連動）';
+    }else{
+      gSrcOsc.gain.setTargetAtTime(1.0, t, fade);
+      gSrcNoise.gain.setTargetAtTime(0.0, t, fade);
+      el.combBadge.textContent = 'Pink Noise: ON（コムタブで自動）';
+    }
+  }
+
+  function setOscFreqHard(f){
+    if(!ac) return;
+    const t = ac.currentTime;
+    osc.frequency.cancelScheduledValues(t);
+    osc.frequency.setValueAtTime(f, t);
+  }
+  function setOscFreqSoft(f){
+    if(!ac) return;
+    const t = ac.currentTime;
+    osc.frequency.setTargetAtTime(f, t, 0.01);
+  }
+
+  function applyParams(freqMode=null){
+    const f = currentF();
+    const tauMs = parseFloat(el.delay.value);
+    const r = parseFloat(el.mix.value);
+    const outDb = parseFloat(el.out.value);
+    const compOn = parseInt(el.comp.value,10)===1;
+
+    // time window mode
+    if(timeWinMode==='cycles'){
+      syncTimeWinToCycles();
+    }else{
+      const maxAllowed = maxWindowMsAllowed();
+      const maxMs = Math.min(parseFloat(el.timeWin.max), maxAllowed);
+      let ms = parseFloat(el.timeWin.value);
+      if(ms > maxMs){
+        ms = maxMs;
+        el.timeWin.value = `${ms.toFixed(1)}`;
+        timeWinClampedNote = '(上限)';
+      }else{
+        timeWinClampedNote = '';
+      }
+      updateTimeWinButtons();
+    }
+
+    const winMs = parseFloat(el.timeWin.value);
+    const lockOn = parseInt(el.phaseLock.value,10)===1;
+    el.phaseLockVal.textContent = lockOn ? 'ON' : 'OFF';
+
+    el.freqVal.textContent = `${f.toFixed(f<100?1:0)} Hz`;
+    el.delayVal.textContent = `${tauMs.toFixed(2)} ms`;
+    el.mixVal.textContent = `${r.toFixed(3)}`;
+    el.compVal.textContent = compOn ? 'ON' : 'OFF';
+    el.outVal.textContent = `${outDb.toFixed(1)} dB`;
+    el.timeWinVal.textContent = `${winMs.toFixed(1)} ms`;
+
+    if(ac){
+      const t = ac.currentTime;
+      if(freqMode === 'hard') setOscFreqHard(f);
+      else setOscFreqSoft(f);
+
+      delayNode.delayTime.setTargetAtTime(tauMs/1000, t, 0.01);
+      gDry.gain.setTargetAtTime(1.0, t, 0.01);
+      gWet.gain.setTargetAtTime(r, t, 0.01);
+
+      const comp = compOn ? (1.0/(1.0+r)) : 1.0;
+      gComp.gain.setTargetAtTime(comp, t, 0.02);
+
+      gOut.gain.setTargetAtTime(dbToGain(outDb), t, 0.02);
+    }
+  }
+
+  // ---------- Presets ----------
+  function setPresetLabel(name){ el.presetBadge.textContent = `Preset: ${name}`; }
+  function clearPresetActive(){ [el.pre0, el.pre90, el.pre180, el.preComb].forEach(b=>b.classList.remove('active')); }
+  function activatePreset(btn, name){ clearPresetActive(); btn.classList.add('active'); setPresetLabel(name); }
+
+  function presetPhase(deg){
+    const f = currentF();
+    const tauMs = (deg/360) * (1000 / f);
+    el.delay.value = `${clamp(tauMs, parseFloat(el.delay.min), parseFloat(el.delay.max)).toFixed(2)}`;
+    applyParams(null);
+  }
+
+  // ---------- Drawing helpers ----------
+  const wctx = el.wave.getContext('2d');
+  const pctx = el.phasor.getContext('2d');
+  const cctx = el.comb.getContext('2d');
+
+  function drawGrid(ctx,W,H){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || 'rgba(7,10,20,.65)';
+    ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
+    ctx.lineWidth=1; ctx.globalAlpha=0.7;
+    for(let i=1;i<10;i++){
+      const x=W*i/10;
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+    }
+    for(let i=1;i<6;i++){
+      const y=H*i/6;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+    ctx.strokeStyle='rgba(232,238,255,.18)';
+    ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+  }
+
+  if (!CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r){
+      r = Math.min(r, w/2, h/2);
+      this.beginPath();
+      this.moveTo(x+r, y);
+      this.arcTo(x+w, y, x+w, y+h, r);
+      this.arcTo(x+w, y+h, x, y+h, r);
+      this.arcTo(x, y+h, x, y, r);
+      this.arcTo(x, y, x+w, y, r);
+      this.closePath();
+      return this;
+    }
+  }
+
+  function findLastRisingZeroCrossWithin(u8, maxStart){
+    const maxI = clamp(maxStart, 1, u8.length - 1);
+    for(let i = maxI; i >= 1; i--){
+      const y0 = (u8[i-1] - 128) / 128;
+      const y1 = (u8[i] - 128) / 128;
+      if(y0 < 0 && y1 >= 0){
+        const denom = (y1 - y0);
+        const frac = denom !== 0 ? (-y0 / denom) : 0;
+        return (i - 1) + frac;
+      }
+    }
+    return null;
+  }
+
+  function drawWave(){
+    const W=el.wave.width, H=el.wave.height;
+    drawGrid(wctx,W,H);
+    wctx.fillStyle='rgba(232,238,255,.75)';
+    wctx.font='12px system-ui';
+
+    if(!ac){
+      wctx.fillText('波形：Start後に更新（固定表示ONで“止まって見える”）', 12, 18);
+      return;
+    }
+
+    analyserDry.getByteTimeDomainData(bufDry);
+    analyserWet.getByteTimeDomainData(bufWet);
+    analyserSum.getByteTimeDomainData(bufSum);
+
+    const winMs = parseFloat(el.timeWin.value);
+    const sr = ac.sampleRate;
+    let N = Math.round(sr * (winMs/1000));
+    N = Math.max(32, Math.min(fftSize - 4, N));
+
+    const lockOn = parseInt(el.phaseLock.value,10)===1;
+    let start = fftSize - N;
+    if(lockOn){
+      const maxStart = fftSize - N;
+      const cross = findLastRisingZeroCrossWithin(bufDry, maxStart);
+      if(cross != null){
+        const s = Math.floor(cross);
+        if(s >= 0 && s + N <= fftSize) start = s;
+      }
+    }
+
+    const toY = (v)=>((255-v)/255)*H;
+    const css=getComputedStyle(document.documentElement);
+
+    const drawLine=(buf,color,alpha)=>{
+      wctx.strokeStyle=color; wctx.globalAlpha=alpha; wctx.lineWidth=2;
+      wctx.beginPath();
+      for(let i=0;i<N;i++){
+        const idx=start+i;
+        const x=(i/(N-1))*W;
+        const y=toY(buf[idx]);
+        if(i===0) wctx.moveTo(x,y); else wctx.lineTo(x,y);
+      }
+      wctx.stroke(); wctx.globalAlpha=1;
+    };
+
+    drawLine(bufDry, css.getPropertyValue('--blue').trim(), 0.95);
+    drawLine(bufWet, css.getPropertyValue('--orange').trim(), 0.85);
+    drawLine(bufSum, css.getPropertyValue('--green').trim(), 0.95);
+
+    // clip check on visible segment
+    let clipCount = 0;
+    for(let i=0;i<N;i++){
+      const v = bufSum[start+i];
+      if(v <= 1 || v >= 254) clipCount++;
+    }
+    const clipRate = clipCount / N;
+    if(clipRate > 0.01){
+      el.clipBadge.textContent = `CLIP: ${Math.round(clipRate*100)}%`;
+      el.clipBadge.classList.add('danger');
+      el.clipBadge.classList.remove('warn');
+    }else if(clipRate > 0){
+      el.clipBadge.textContent = `CLIP: ${Math.round(clipRate*1000)/10}%`;
+      el.clipBadge.classList.add('warn');
+      el.clipBadge.classList.remove('danger');
+    }else{
+      el.clipBadge.textContent = `CLIP: 0%`;
+      el.clipBadge.classList.remove('warn','danger');
+    }
+
+    const modeStr = (timeWinMode==='cycles') ? `${timeWinCycles}周期` : `ms固定`;
+    wctx.fillText(`波形：時間窓 ${winMs.toFixed(1)}ms（${modeStr}${timeWinClampedNote?` ${timeWinClampedNote}`:''} / 固定 ${lockOn?'ON':'OFF'}）`, 12, 18);
+  }
+
+  function drawPhasor(){
+    const W=el.phasor.width, H=el.phasor.height;
+    drawGrid(pctx,W,H);
+
+    const cx=W*0.5, cy=H*0.55, R=Math.min(W,H)*0.32;
+
+    pctx.strokeStyle='rgba(232,238,255,.22)'; pctx.lineWidth=2;
+    pctx.beginPath(); pctx.arc(cx,cy,R,0,Math.PI*2); pctx.stroke();
+
+    pctx.strokeStyle='rgba(232,238,255,.18)'; pctx.lineWidth=1;
+    pctx.beginPath(); pctx.moveTo(cx-R,cy); pctx.lineTo(cx+R,cy); pctx.stroke();
+    pctx.beginPath(); pctx.moveTo(cx,cy-R); pctx.lineTo(cx,cy+R); pctx.stroke();
+
+    const f = currentF();
+    const tau = parseFloat(el.delay.value)/1000;
+    const r = parseFloat(el.mix.value);
+    const compOn = parseInt(el.comp.value,10)===1;
+    const comp = compOn ? (1.0/(1.0+r)) : 1.0;
+
+    const phi = 2*Math.PI * f * tau;
+
+    const dry = {x:1, y:0};
+    const wet = {x:r*Math.cos(-phi), y:r*Math.sin(-phi)};
+    const sumV = {x:dry.x+wet.x, y:dry.y+wet.y};
+    const sumC = {x:sumV.x*comp, y:sumV.y*comp};
+
+    function drawVec(v, color, label){
+      pctx.strokeStyle=color; pctx.fillStyle=color; pctx.lineWidth=3;
+      const x2=cx + v.x*R;
+      const y2=cy - v.y*R;
+
+      pctx.beginPath(); pctx.moveTo(cx,cy); pctx.lineTo(x2,y2); pctx.stroke();
+
+      const ang = Math.atan2((cy-y2),(x2-cx));
+      const ah=10;
+      pctx.beginPath();
+      pctx.moveTo(x2,y2);
+      pctx.lineTo(x2 - ah*Math.cos(ang-0.35), y2 + ah*Math.sin(ang-0.35));
+      pctx.lineTo(x2 - ah*Math.cos(ang+0.35), y2 + ah*Math.sin(ang+0.35));
+      pctx.closePath(); pctx.fill();
+
+      pctx.font='12px system-ui';
+      pctx.fillText(label, x2+8, y2-6);
+    }
+
+    const css=getComputedStyle(document.documentElement);
+    drawVec(dry, css.getPropertyValue('--blue').trim(), '原(1∠0°)');
+    drawVec(wet, css.getPropertyValue('--orange').trim(), `遅延(${r.toFixed(2)}∠-${(phi*180/Math.PI).toFixed(0)}°)`);
+    drawVec(sumC, css.getPropertyValue('--green').trim(), `合成${compOn?'(補償後)':''}`);
+
+    const phiWrap = Math.atan2(Math.sin(phi), Math.cos(phi));
+    const phiDeg = phiWrap*180/Math.PI;
+    const amp = Math.sqrt(sumV.x*sumV.x + sumV.y*sumV.y);
+    const ampC = amp*comp;
+
+    const tau180ms = 1000/(2*f);
+
+    pctx.fillStyle='rgba(232,238,255,.78)';
+    pctx.font='12px system-ui';
+    pctx.fillText('ベクトル加算（フェーザ）：位相差で合成結果が変わる', 12, 18);
+
+    const boxX=12, boxY=H-56, boxW=W-24, boxH=44;
+    pctx.fillStyle='rgba(7,10,20,.55)';
+    pctx.strokeStyle='rgba(120,150,255,.16)';
+    pctx.lineWidth=1;
+    pctx.beginPath(); pctx.roundRect(boxX, boxY, boxW, boxH, 12);
+    pctx.fill(); pctx.stroke();
+
+    pctx.fillStyle='rgba(232,238,255,.85)';
+    pctx.fillText(`f=${Math.round(f)}Hz / τ=${(tau*1000).toFixed(2)}ms / φ(wrap)=${phiDeg.toFixed(1)}° / A=${amp.toFixed(3)} → 補償後 ${ampC.toFixed(3)}`, boxX+12, boxY+18);
+    pctx.fillStyle='rgba(169,180,214,.85)';
+    pctx.fillText(`180°条件 τ=1/(2f)=${tau180ms.toFixed(3)}ms（r=1で打ち消し）`, boxX+12, boxY+34);
+  }
+
+  // ---------- FFT acquisition (EMA smoothing + alignment cache) ----------
+  function sanitizeDb(v){
+    if(!Number.isFinite(v)) return FFT_DB_FLOOR;
+    return Math.max(FFT_DB_FLOOR, Math.min(0, v)); // clamp for stability
+  }
+
+  function updateFft(){
+    if(!ac) return;
+    if(ac.state !== 'running') return;
+
+    // FFTはコム表示中のみ更新（無駄な負荷を避ける）
+    if(activeTab !== 'comb') return;
+    if(!combFftOn) return;
+
+    const now = performance.now();
+    if(now - lastFftUpdate < FFT_UPDATE_MS) return;
+    lastFftUpdate = now;
+
+    analyserSum.getFloatFrequencyData(fftOut);
+    analyserIn.getFloatFrequencyData(fftIn);
+
+    // EMA smoothing with sanitize
+    for(let i=0;i<fftOut.length;i++){
+      const v = sanitizeDb(fftOut[i]);
+      fftOutEma[i] = fftOutEma[i]*(1-FFT_EMA_ALPHA) + v*FFT_EMA_ALPHA;
+      const u = sanitizeDb(fftIn[i]);
+      fftInEma[i]  = fftInEma[i]*(1-FFT_EMA_ALPHA) + u*FFT_EMA_ALPHA;
+    }
+
+    // compute band medians (for vertical alignment)
+    const sr = ac.sampleRate;
+    const binHz = sr / fftSize;
+    const binCount = fftOutEma.length;
+
+    const loBin = clamp(Math.floor(200/binHz), 0, binCount-1);
+    const hiBin = clamp(Math.floor(2000/binHz), 0, binCount-1);
+
+    const outBand = [];
+    const inBand  = [];
+    for(let b=loBin;b<=hiBin;b++){
+      outBand.push(fftOutEma[b]);
+      inBand.push(fftInEma[b]);
+    }
+    outBandMedian = median(outBand);
+    inBandMedian  = median(inBand);
+
+    fftReady = true;
+    el.fftBadge.textContent = `FFT: OK（整列基準 200–2000Hz）`;
+    el.fftBadge.classList.remove('warn','danger');
+  }
+
+  // ---------- Comb plot (Theory + FFT overlay) ----------
+  function drawComb(){
+    const W = el.comb.width, H = el.comb.height;
+
+    cctx.clearRect(0,0,W,H);
+    cctx.fillStyle='rgba(7,10,20,.65)';
+    cctx.fillRect(0,0,W,H);
+
+    const fMin = 20, fMax = 20000;
+    const yMin = -36, yMax = +12;
+
+    const yToPix = (db)=>{
+      const t = (db - yMin) / (yMax - yMin);
+      return H - t * H;
+    };
+
+    const freqToX = (f)=>{
+      f = clamp(f, fMin, fMax);
+      const t = Math.log(f/fMin) / Math.log(fMax/fMin);
+      return t*(W-1);
+    };
+
+    // grid
+    cctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
+    cctx.lineWidth=1; cctx.globalAlpha=0.7;
+    for(let i=1;i<10;i++){
+      const x=W*i/10;
+      cctx.beginPath(); cctx.moveTo(x,0); cctx.lineTo(x,H); cctx.stroke();
+    }
+    for(let i=1;i<6;i++){
+      const y=H*i/6;
+      cctx.beginPath(); cctx.moveTo(0,y); cctx.lineTo(W,y); cctx.stroke();
+    }
+    cctx.globalAlpha=1;
+
+    // 0 dB line
+    cctx.strokeStyle='rgba(232,238,255,.22)';
+    cctx.beginPath();
+    cctx.moveTo(0, yToPix(0));
+    cctx.lineTo(W, yToPix(0));
+    cctx.stroke();
+
+    const tau = parseFloat(el.delay.value)/1000;
+    const r = parseFloat(el.mix.value);
+    const compOn = parseInt(el.comp.value,10)===1;
+    const comp = compOn ? (1.0/(1.0+r)) : 1.0;
+
+    // Theory curve
+    const css = getComputedStyle(document.documentElement);
+    cctx.strokeStyle = css.getPropertyValue('--green').trim();
+    cctx.lineWidth = 2;
+    cctx.beginPath();
+    const N = 900;
+    for(let i=0;i<N;i++){
+      const t = i/(N-1);
+      const f = logSpace(fMin, fMax, t);
+
+      let mag;
+      if(tau > 1e-6){
+        const wTau = 2*Math.PI * f * tau;
+        mag = Math.sqrt(1 + r*r + 2*r*Math.cos(wTau));
+      }else{
+        mag = 1 + r;
+      }
+      mag *= comp;
+      const db = gainToDb(mag);
+
+      const x = t*(W-1);
+      const y = yToPix(db);
+      if(i===0) cctx.moveTo(x,y); else cctx.lineTo(x,y);
+    }
+    cctx.stroke();
+
+    // FFT overlay
+    if(combFftOn){
+      if(!ac || ac.state !== 'running'){
+        el.fftBadge.textContent = 'FFT: Audio stopped';
+        el.fftBadge.classList.add('warn');
+      }else if(!fftReady){
+        el.fftBadge.textContent = 'FFT: warming up...';
+        el.fftBadge.classList.add('warn');
+      }else{
+        el.fftBadge.textContent = `FFT: OK（${combAlignOn?'整列ON':'整列OFF'}）`;
+        el.fftBadge.classList.remove('warn','danger');
+      }
+    }else{
+      el.fftBadge.textContent = 'FFT: OFF';
+      el.fftBadge.classList.remove('warn','danger');
+    }
+
+    if(combFftOn && ac && fftOutEma && fftReady){
+      const sr = ac.sampleRate;
+      const binHz = sr / fftSize;
+      const binCount = fftOutEma.length;
+
+      const offsetOut = combAlignOn ? (-outBandMedian) : 0;
+      const offsetIn  = combAlignOn ? (-inBandMedian)  : 0;
+
+      // input FFT (optional)
+      if(combShowInput && fftInEma){
+        cctx.strokeStyle = 'rgba(169,180,214,.55)';
+        cctx.lineWidth = 1.5;
+        cctx.beginPath();
+        for(let i=0;i<N;i++){
+          const t = i/(N-1);
+          const f = logSpace(fMin, fMax, t);
+          let b = Math.round(f/binHz);
+          b = clamp(b, 0, binCount-1);
+          const db = fftInEma[b] + offsetIn;
+          const x = t*(W-1);
+          const y = yToPix(db);
+          if(i===0) cctx.moveTo(x,y); else cctx.lineTo(x,y);
+        }
+        cctx.stroke();
+      }
+
+      // output FFT
+      cctx.strokeStyle = 'rgba(232,238,255,.86)';
+      cctx.lineWidth = 1.8;
+      cctx.beginPath();
+      for(let i=0;i<N;i++){
+        const t = i/(N-1);
+        const f = logSpace(fMin, fMax, t);
+        let b = Math.round(f/binHz);
+        b = clamp(b, 0, binCount-1);
+        const db = fftOutEma[b] + offsetOut;
+        const x = t*(W-1);
+        const y = yToPix(db);
+        if(i===0) cctx.moveTo(x,y); else cctx.lineTo(x,y);
+      }
+      cctx.stroke();
+    }
+
+    // labels
+    cctx.fillStyle='rgba(232,238,255,.78)';
+    cctx.font='12px system-ui';
+    cctx.fillText('コムフィルター：理論（緑）＋実測FFT（白）※コムタブはピンクノイズに自動切替', 12, 18);
+
+    // info Δf
+    if(tau <= 1e-6){
+      el.combInfo.textContent = 'τ≈0：コムにならず、同相加算（周波数によらず一定）';
+    }else{
+      const df = 1/tau;
+      el.combInfo.textContent = `τ=${(tau*1000).toFixed(2)}ms → 山谷間隔 Δf=1/τ=${df.toFixed(1)}Hz（τ↑で山谷が細かく）`;
+    }
+  }
+
+  // ---------- Measured frequency (time-domain) ----------
+  function estimateFreqFromBytes(u8, sr){
+    const n=u8.length;
+    if(n<8) return null;
+    let crossings=[];
+    let prev=(u8[0]-128)/128;
+    for(let i=1;i<n;i++){
+      const cur=(u8[i]-128)/128;
+      if(prev<0 && cur>=0){
+        const denom = (cur - prev);
+        const frac = denom !== 0 ? (-prev/denom) : 0;
+        crossings.push((i-1)+frac);
+      }
+      prev=cur;
+    }
+    if(crossings.length<2) return null;
+    const first=crossings[0], last=crossings[crossings.length-1];
+    const cycles=crossings.length-1;
+    const spc=(last-first)/cycles;
+    if(spc<=0) return null;
+    const hz=sr/spc;
+    if(!Number.isFinite(hz)) return null;
+    return hz;
+  }
+
+  function updateMeasured(){
+    const now=performance.now();
+    if(now-lastMeasUpdate<120) return;
+    lastMeasUpdate=now;
+
+    if(!ac || ac.state !== 'running'){
+      el.measHz.textContent='---';
+      el.measDelta.textContent='---';
+      measHzSmooth=null;
+      return;
+    }
+
+    analyserDry.getByteTimeDomainData(bufDry);
+    const hz=estimateFreqFromBytes(bufDry, ac.sampleRate);
+    if(hz==null){
+      el.measHz.textContent='---';
+      el.measDelta.textContent='---';
+      measHzSmooth=null;
+      return;
+    }
+    const alpha=0.2;
+    measHzSmooth = (measHzSmooth==null)? hz : (measHzSmooth*(1-alpha)+hz*alpha);
+    const target=currentF();
+    const delta=measHzSmooth-target;
+    el.measHz.textContent=`${measHzSmooth.toFixed(2)} Hz`;
+    el.measDelta.textContent=`${delta>=0?'+':''}${delta.toFixed(2)} Hz`;
+  }
+
+  // ---------- Loop ----------
+  function frame(){
+    try{
+      updateFft();
+
+      if(activeTab === 'main'){
+        drawWave();
+        drawPhasor();
+      }else{
+        drawComb();
+      }
+
+      updateMeasured();
+    }catch(err){
+      log(`draw loop error: ${err?.message ?? err}`, 'err');
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---------- Events ----------
+  el.freq.addEventListener('input', ()=>{
+    const f=sliderToFreq(parseFloat(el.freq.value));
+    el.freqNum.value = `${Math.round(f)}`;
+    applyParams('soft');
+  });
+
+  function commitFreqNumber(){
+    let f=parseFloat(el.freqNum.value);
+    if(!Number.isFinite(f)) f=1000;
+    f=clamp(f,20,10000);
+    el.freqNum.value=`${Math.round(f)}`;
+    el.freq.value = `${freqToSlider(f)}`;
+    applyParams('hard');
+  }
+  el.freqNum.addEventListener('change', commitFreqNumber);
+  el.freqNum.addEventListener('keydown', (e)=>{
+    if(e.key==='Enter'){
+      e.preventDefault();
+      commitFreqNumber();
+      el.freqNum.blur();
+    }
+  });
+
+  el.btn1k.addEventListener('click', ()=>{
+    const f=1000;
+    el.freqNum.value=`${f}`;
+    el.freq.value=`${freqToSlider(f)}`;
+    applyParams('hard');
+  });
+
+  el.timeWin.addEventListener('input', ()=>{
+    if(timeWinMode !== 'ms') setTimeWinMode('ms');
+    applyParams(null);
+  });
+
+  el.phaseLock.addEventListener('input', ()=>applyParams(null));
+  ['delay','mix','comp','out'].forEach(id=>{
+    el[id].addEventListener('input', ()=>applyParams(null));
+  });
+
+  el.tw1.addEventListener('click', ()=>{ setTimeWinMode('cycles', 1); applyParams(null); });
+  el.tw3.addEventListener('click', ()=>{ setTimeWinMode('cycles', 3); applyParams(null); });
+  el.tw10.addEventListener('click', ()=>{ setTimeWinMode('cycles', 10); applyParams(null); });
+  el.twMs.addEventListener('click', ()=>{ setTimeWinMode('ms'); applyParams(null); });
+
+  el.pre0.addEventListener('click', ()=>{
+    activatePreset(el.pre0, '同相（0°）');
+    presetPhase(0);
+    setTab('main');
+  });
+  el.pre90.addEventListener('click', ()=>{
+    activatePreset(el.pre90, '90°');
+    presetPhase(90);
+    setTab('main');
+  });
+  el.pre180.addEventListener('click', ()=>{
+    activatePreset(el.pre180, '逆相（180°）');
+    presetPhase(180);
+    setTab('main');
+  });
+  el.preComb.addEventListener('click', ()=>{
+    activatePreset(el.preComb, 'コム体験（τ=3ms）');
+    el.delay.value = `${clamp(3.0, parseFloat(el.delay.min), parseFloat(el.delay.max)).toFixed(2)}`;
+    applyParams(null);
+    setTab('comb');
+  });
+
+  el.btnStart.addEventListener('click', async ()=>{
+    if(starting) return;
+    starting = true;
+    try{
+      ensureAudio();
+      if(ac.state !== 'running') await ac.resume();
+      log(`resume done: state=${ac.state}`, 'info');
+
+      setSourceMode(activeTab === 'comb' ? 'pink' : 'osc', false);
+
+      // reset FFT readiness
+      fftReady = false;
+      lastFftUpdate = 0;
+
+      applyParams('hard');
+      setUiRunning(true);
+      setState(`Audio: running (${ac.state})`, true);
+    }catch(err){
+      log(`Start failed: ${err?.message ?? err}`, 'err');
+      setUiRunning(false);
+      setState(`Audio: error - ${err?.message ?? err}`, false);
+    }finally{
+      starting = false;
+    }
+  });
+
+  el.btnStop.addEventListener('click', async ()=>{
+    if(!ac) return;
+    try{
+      await ac.suspend();
+      log(`suspend: state=${ac.state}`, 'info');
+      setUiRunning(false);
+      setState(`Audio: stopped (${ac.state})`, false);
+      el.fftBadge.textContent = 'FFT: Audio stopped';
+      el.fftBadge.classList.add('warn');
+    }catch(err){
+      log(`Stop failed: ${err?.message ?? err}`, 'err');
+    }
+  });
+
+  el.btnReset.addEventListener('click', async ()=>{
+    log('Reset requested', 'warn');
+    await closeAudio();
+    setUiRunning(false);
+    setState('Audio: stopped', false);
+  });
+
+  // ---------- Init ----------
+  const initF=1000;
+  el.freq.value = `${freqToSlider(initF)}`;
+  el.freqNum.value = `${initF}`;
+  el.phaseLock.value = '1';
+  el.phaseLockVal.textContent = 'ON';
+
+  setPresetLabel('なし');
+  setTimeWinMode('cycles', 3);
+  applyParams(null);
+  setUiRunning(false);
+  setState('Audio: stopped', false);
+  setTab('main');
+  updateStepHint();
+
+  el.clipBadge.textContent = 'CLIP: ---';
+  el.fftBadge.textContent = 'FFT: ---';
+
+  log('Ready. Click Start Audio.', 'info');
+})();
+</script>
+</body>
+</html>

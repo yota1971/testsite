@@ -1,0 +1,912 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>指向性マイクの原理</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121a31;
+      --panel2: #182240;
+      --text: #e8ecf7;
+      --muted: #aab4d0;
+      --grid: #2a365f;
+      --accent: #56b4e9;
+      --accent2: #e69f00;
+      --accent3: #009e73;
+      --accent4: #cc79a7;
+      --accent5: #f0e442;
+      --accent6: #d0d7ef;
+      --shadow: 0 10px 24px rgba(0,0,0,.24);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+    }
+    body { min-height: 100vh; }
+    .wrap { max-width: 1720px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: clamp(24px, 2.4vw, 34px); margin: 0 0 10px; }
+    .sub { color: var(--muted); margin-bottom: 14px; line-height: 1.65; }
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(86,180,233,.12);
+      border: 1px solid rgba(86,180,233,.35);
+      color: #bfe9ff;
+      font-size: 12px;
+    }
+    .warn { color: #ffd38d; }
+    .card {
+      background: linear-gradient(180deg, var(--panel), var(--panel2));
+      border: 1px solid #22305a;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .topgrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: start;
+    }
+    .panel { padding: 12px; min-height: 370px; }
+    .panel h2 { margin: 0 0 8px; font-size: 18px; }
+    .small { color: var(--muted); font-size: 13px; line-height: 1.58; }
+    .readout { color: var(--muted); margin-top: 8px; font-size: 13px; min-height: 3.1em; line-height: 1.5; }
+    canvas {
+      width: 100%;
+      height: 300px;
+      display: block;
+      background: #0a1328;
+      border: 1px solid #26345f;
+      border-radius: 14px;
+      touch-action: none;
+      user-select: none;
+    }
+    .legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .key { display: inline-flex; align-items: center; gap: 6px; }
+    .sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+
+    .controls { padding: 14px; }
+    .controlsGrid {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+    .section {
+      border: 1px solid #2b3760;
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(255,255,255,.02);
+    }
+    .section h3 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      color: #dfe7ff;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      margin: 8px 0;
+    }
+    label { font-size: 14px; font-weight: 700; }
+    input[type="range"] { width: 100%; }
+    .value {
+      min-width: 110px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    button, select {
+      appearance: none;
+      border: 1px solid #3b4c84;
+      background: #1b2850;
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover, select:hover { filter: brightness(1.06); }
+    button.active { background: #284184; border-color: #6e8ff5; }
+
+    .checks { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 8px; }
+    .checks label { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+
+    .statgrid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0,1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .stat {
+      background: rgba(255,255,255,.03);
+      border: 1px solid #2f3f73;
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .stat .k { color: var(--muted); font-size: 12px; }
+    .stat .v { font-size: 18px; font-weight: 800; margin-top: 4px; }
+
+    .formula {
+      background: rgba(255,255,255,.03);
+      border: 1px solid #2f3f73;
+      border-radius: 12px;
+      padding: 10px 12px;
+      line-height: 1.75;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      overflow-x: auto;
+      font-size: 13px;
+    }
+
+    .logTicks {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .logTicks span { text-align: center; }
+
+    .memo {
+      margin-top: 12px;
+      padding: 12px 14px;
+    }
+    .good { color: #bde7cc; }
+
+    @media (max-width: 1360px) {
+      .topgrid { grid-template-columns: 1fr; }
+      .controlsGrid { grid-template-columns: 1fr; }
+      .statgrid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    }
+    @media (max-width: 760px) {
+      .statgrid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>指向性マイクの原理</h1>
+    <div class="sub">
+      2つの受音信号 <b>A</b>, <b>B</b> から、<b>無指向（Omni）</b> = (A+B)/2、<b>双指向（Figure-8）</b> = (A−B)/2 を作り、
+      <b>出力 = a·Omni + b·Figure-8</b> で <b>カーディオイド / スーパーカーディオイド / ハイパーカーディオイド</b> を生成します。<br>
+    </div>
+
+    <div class="topgrid">
+      <div class="card panel">
+        <h2>1) 受音波形と生成過程</h2>
+        <div class="small">A, B から Omni と Figure-8 を作り、その線形結合として出力が生成される様子を表示します。<b>ホバーで時刻読み取り</b>できます。</div>
+        <canvas id="waveCanvas" width="900" height="320"></canvas>
+        <div class="legend">
+          <span class="key"><span class="sw" style="background:#56b4e9"></span>A</span>
+          <span class="key"><span class="sw" style="background:#e69f00"></span>B</span>
+          <span class="key"><span class="sw" style="background:#009e73"></span>Omni</span>
+          <span class="key"><span class="sw" style="background:#cc79a7"></span>Figure-8</span>
+          <span class="key"><span class="sw" style="background:#f0e442"></span>出力</span>
+        </div>
+        <div class="readout" id="waveReadout"></div>
+      </div>
+
+      <div class="card panel">
+        <h2>2) ポーラーパターン</h2>
+        <div class="small">実線が <b>物理2点モデル</b>、破線が <b>理想一次指向性</b> です。<b>クリックで角度固定</b>、<b>ダブルクリック / 右クリックで解除</b>できます。</div>
+        <canvas id="polarCanvas" width="900" height="320"></canvas>
+        <div class="legend">
+          <span class="key"><span class="sw" style="background:#56b4e9"></span>物理2点モデル</span>
+          <span class="key"><span class="sw" style="background:#cc79a7"></span>理想一次指向性</span>
+          <span class="key"><span class="sw" style="background:#f0e442"></span>現在角度</span>
+          <span class="key"><span class="sw" style="background:#d0d7ef"></span>固定 / 読取</span>
+        </div>
+        <div class="readout" id="polarReadout"></div>
+      </div>
+
+      <div class="card panel">
+        <h2>3) 周波数応答（入射角固定）</h2>
+        <div class="small">現在角度での利得です。理想一次指向性は周波数一定ですが、物理2点モデルは <b>周波数依存</b> を持ちます。<b>ホバーで周波数 / 利得読み取り</b>できます。</div>
+        <canvas id="frCanvas" width="900" height="320"></canvas>
+        <div class="readout" id="frReadout"></div>
+      </div>
+    </div>
+
+    <div class="card controls">
+      <div class="controlsGrid">
+        <div class="section">
+          <h3>基本パラメータ</h3>
+
+          <div class="row">
+            <label for="freq">周波数 f（対数スライダー）</label>
+            <div class="value" id="freqVal"></div>
+          </div>
+          <input id="freq" type="range" min="0" max="1000" step="1" value="500" />
+          <div class="logTicks">
+            <span>100</span><span>200</span><span>500</span><span>1k</span><span>2k</span><span>5k</span><span>10k</span>
+          </div>
+
+          <div class="row">
+            <label for="dist">受音点間距離 d</label>
+            <div class="value" id="distVal"></div>
+          </div>
+          <input id="dist" type="range" min="0.005" max="0.30" step="0.001" value="0.02" />
+
+          <div class="row">
+            <label for="angle">入射角 θ</label>
+            <div class="value" id="angleVal"></div>
+          </div>
+          <input id="angle" type="range" min="-180" max="180" step="1" value="0" />
+
+          <div class="row">
+            <label for="speed">音速 c</label>
+            <div class="value" id="speedVal"></div>
+          </div>
+          <input id="speed" type="range" min="330" max="350" step="0.1" value="343" />
+        </div>
+
+        <div class="section">
+          <h3>指向性合成</h3>
+          <label style="display:block;margin-bottom:8px;">プリセット（a·Omni + b·Figure-8）</label>
+          <div class="btns">
+            <button id="presetOmni">無指向</button>
+            <button id="presetFig8">双指向</button>
+            <button id="presetCardioid" class="active">カーディオイド</button>
+            <button id="presetSuper">スーパー</button>
+            <button id="presetHyper">ハイパー</button>
+          </div>
+          <div class="small" style="margin-top:8px;">カーディオイドは <b>a=0.50, b=0.50</b>。前方を保ち、後方を抑える基本形です。</div>
+
+          <div class="row" style="margin-top:12px;">
+            <label for="aMix">Omni 係数 a</label>
+            <div class="value" id="aVal"></div>
+          </div>
+          <input id="aMix" type="range" min="0" max="1" step="0.01" value="0.5" />
+
+          <div class="row">
+            <label for="bMix">Figure-8 係数 b</label>
+            <div class="value" id="bVal"></div>
+          </div>
+          <input id="bMix" type="range" min="0" max="1" step="0.01" value="0.5" />
+
+          <div class="small" style="margin-top:8px;">典型例: 無指向=(1,0)、双指向=(0,1)、カーディオイド=(0.50,0.50)、スーパー≈(0.37,0.63)、ハイパー≈(0.25,0.75)</div>
+        </div>
+
+        <div class="section">
+          <h3>表示・読み取り・検算</h3>
+          <div class="checks">
+            <label><input id="showA" type="checkbox" checked> A</label>
+            <label><input id="showB" type="checkbox" checked> B</label>
+            <label><input id="showOmni" type="checkbox" checked> Omni</label>
+            <label><input id="showFig8" type="checkbox" checked> Figure-8</label>
+            <label><input id="showOut" type="checkbox" checked> 出力</label>
+            <label><input id="showIdeal" type="checkbox" checked> 理想一次指向性を重ねる</label>
+          </div>
+
+          <div class="btns" style="margin-top:12px;">
+            <button id="sceneLow">低域で理想に近い</button>
+            <button id="sceneHigh">高域で崩れを見る</button>
+            <button id="sceneBack">後方打消しを見る</button>
+            <button id="sceneReset">リセット</button>
+          </div>
+
+          <div class="formula" style="margin-top:12px;">
+            τ = d · cos(θ) / c
+            <br>Omni = (A + B) / 2
+            <br>Figure-8 = (A − B) / 2
+            <br>Output = a·Omni + b·Figure-8
+            <br>= 0.5·[(a+b)A + (a−b)B]
+            <br><br>理想一次指向性（低域近似）:
+            <br>G(θ) = a + b cos(θ)
+          </div>
+        </div>
+      </div>
+
+      <div class="statgrid">
+        <div class="stat"><div class="k">到達時間差 τ</div><div class="v" id="tauVal">0 µs</div></div>
+        <div class="stat"><div class="k">位相差 Δφ</div><div class="v" id="phiVal">0°</div></div>
+        <div class="stat"><div class="k">現在角度の利得</div><div class="v" id="gainVal">0 dB</div></div>
+        <div class="stat"><div class="k">後方（180°）利得</div><div class="v" id="rearVal">−∞ dB</div></div>
+        <div class="stat"><div class="k">理想後方極性</div><div class="v" id="polarityVal">+</div></div>
+        <div class="stat"><div class="k">前方感度の規格化</div><div class="v" id="normVal">1.00</div></div>
+      </div>
+    </div>
+
+    <div class="card memo">
+      <div class="small" style="font-size:14px;line-height:1.78">
+        <b>無指向</b>は圧力そのものを見るので方向差が出にくい。<br>
+        <b>双指向</b>は前後差（圧力勾配）を見るので、前後で極性が反転し、横で小さくなりやすい。<br>
+        <b>カーディオイド</b>は <b>無指向 + 双指向</b> の和として説明でき、前方を保ちながら後方を抑える。<br>
+        ただし実際の物理構造は <b>周波数依存</b> を持つため、理想形と完全一致はしません。<br><br>
+        要するに、<span class="good"><b>指向性の本質は「向き」ではなく、時間差 → 位相差 → 干渉 → 線形結合</b></span>です。
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    const FREQ_MIN = 100;
+    const FREQ_MAX = 10000;
+
+    const state = {
+      freq: 1000,
+      dist: 0.02,
+      angle: 0,
+      speed: 343,
+      a: 0.5,
+      b: 0.5,
+      showA: true,
+      showB: true,
+      showOmni: true,
+      showFig8: true,
+      showOut: true,
+      showIdeal: true,
+      hoverPolarAngle: null,
+      lockPolarAngle: null,
+      hoverWaveT: null,
+      hoverFrFreq: null
+    };
+
+    const els = {
+      freq: $('freq'), dist: $('dist'), angle: $('angle'), speed: $('speed'),
+      aMix: $('aMix'), bMix: $('bMix'),
+      showA: $('showA'), showB: $('showB'), showOmni: $('showOmni'), showFig8: $('showFig8'), showOut: $('showOut'), showIdeal: $('showIdeal'),
+      freqVal: $('freqVal'), distVal: $('distVal'), angleVal: $('angleVal'), speedVal: $('speedVal'), aVal: $('aVal'), bVal: $('bVal'),
+      tauVal: $('tauVal'), phiVal: $('phiVal'), gainVal: $('gainVal'), rearVal: $('rearVal'), polarityVal: $('polarityVal'), normVal: $('normVal'),
+      waveCanvas: $('waveCanvas'), polarCanvas: $('polarCanvas'), frCanvas: $('frCanvas'),
+      waveReadout: $('waveReadout'), polarReadout: $('polarReadout'), frReadout: $('frReadout'),
+      presetOmni: $('presetOmni'), presetFig8: $('presetFig8'), presetCardioid: $('presetCardioid'), presetSuper: $('presetSuper'), presetHyper: $('presetHyper')
+    };
+
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    function rad(d) { return d * Math.PI / 180; }
+    function deg(r) { return r * 180 / Math.PI; }
+    function log10(x) { return Math.log(x) / Math.LN10; }
+    function fmtHz(v) { return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 1 : 2).replace(/\.0+$/,'') + ' kHz' : Math.round(v) + ' Hz'; }
+    function fmtM(v) { return (v * 100).toFixed(1) + ' cm'; }
+    function fmtUs(v) { return (v * 1e6).toFixed(1) + ' µs'; }
+    function fmtDeg(v) { return (Math.abs(v) >= 100 ? Math.round(v) : v.toFixed(1)) + '°'; }
+    function fmtMs(v) { return (v * 1000).toFixed(3) + ' ms'; }
+    function fmtSigned(v) { return (v >= 0 ? '+' : '') + v.toFixed(3); }
+
+    // 対数スライダー変換
+    function sliderToFreq(sliderValue) {
+      const u = clamp(sliderValue / 1000, 0, 1);
+      return Math.pow(10, log10(FREQ_MIN) + u * (log10(FREQ_MAX) - log10(FREQ_MIN)));
+    }
+    function freqToSlider(freq) {
+      const u = (log10(freq) - log10(FREQ_MIN)) / (log10(FREQ_MAX) - log10(FREQ_MIN));
+      return clamp(Math.round(u * 1000), 0, 1000);
+    }
+
+    function setPreset(name) {
+      const presets = {
+        omni: [1.0, 0.0],
+        fig8: [0.0, 1.0],
+        cardioid: [0.5, 0.5],
+        super: [0.37, 0.63],
+        hyper: [0.25, 0.75]
+      };
+      const p = presets[name];
+      if (!p) return;
+      state.a = p[0];
+      state.b = p[1];
+      sync();
+    }
+
+    // 上=0°, 右=90°, 下=180°, 左=-90°
+    function tauFor(thetaDeg) {
+      return state.dist * Math.cos(rad(thetaDeg)) / state.speed;
+    }
+
+    function H_out(f, thetaDeg) {
+      const ph = 2 * Math.PI * f * tauFor(thetaDeg);
+      const re = 0.5 * ((state.a + state.b) + (state.a - state.b) * Math.cos(ph));
+      const im = 0.5 * ((state.a - state.b) * Math.sin(ph));
+      return { re, im, mag: Math.hypot(re, im) };
+    }
+
+    function frontMag(f) {
+      return Math.max(H_out(f, 0).mag, 1e-9);
+    }
+
+    function physMag(thetaDeg, f) {
+      return H_out(f, thetaDeg).mag / frontMag(f);
+    }
+
+    function physDb(thetaDeg, f) {
+      return 20 * Math.log10(Math.max(physMag(thetaDeg, f), 1e-6));
+    }
+
+    function idealSigned(thetaDeg) {
+      const denom = Math.max(Math.abs(state.a + state.b), 1e-9);
+      return (state.a + state.b * Math.cos(rad(thetaDeg))) / denom;
+    }
+
+    function idealMag(thetaDeg) { return Math.abs(idealSigned(thetaDeg)); }
+    function idealDb(thetaDeg) { return 20 * Math.log10(Math.max(idealMag(thetaDeg), 1e-6)); }
+
+    function activePresetName() {
+      const pairs = [
+        ['omni', 1.00, 0.00], ['fig8', 0.00, 1.00], ['cardioid', 0.50, 0.50], ['super', 0.37, 0.63], ['hyper', 0.25, 0.75]
+      ];
+      for (const [name, a, b] of pairs) {
+        if (Math.abs(state.a - a) < 0.006 && Math.abs(state.b - b) < 0.006) return name;
+      }
+      return 'custom';
+    }
+
+    function updatePresetButtons() {
+      const name = activePresetName();
+      els.presetOmni.classList.toggle('active', name === 'omni');
+      els.presetFig8.classList.toggle('active', name === 'fig8');
+      els.presetCardioid.classList.toggle('active', name === 'cardioid');
+      els.presetSuper.classList.toggle('active', name === 'super');
+      els.presetHyper.classList.toggle('active', name === 'hyper');
+    }
+
+    function updateLabels() {
+      els.freqVal.textContent = fmtHz(state.freq);
+      els.distVal.textContent = fmtM(state.dist);
+      els.angleVal.textContent = `${state.angle}°`;
+      els.speedVal.textContent = `${state.speed.toFixed(1)} m/s`;
+      els.aVal.textContent = state.a.toFixed(2);
+      els.bVal.textContent = state.b.toFixed(2);
+
+      const tau = tauFor(state.angle);
+      const phi = 360 * state.freq * tau;
+      const g = physDb(state.angle, state.freq);
+      const rear = physDb(180, state.freq);
+      const rearSign = idealSigned(180) >= 0 ? '+' : '−';
+
+      els.tauVal.textContent = fmtUs(tau);
+      els.phiVal.textContent = fmtDeg(phi);
+      els.gainVal.textContent = `${g.toFixed(1)} dB`;
+      els.rearVal.textContent = `${rear.toFixed(1)} dB`;
+      els.polarityVal.textContent = rearSign;
+      els.normVal.textContent = frontMag(state.freq).toFixed(2);
+      updatePresetButtons();
+    }
+
+    function fitCanvas(canvas) {
+      const ratio = Math.max(1, window.devicePixelRatio || 1);
+      const cssW = canvas.clientWidth || canvas.width;
+      const cssH = canvas.clientHeight || 300;
+      canvas.width = Math.floor(cssW * ratio);
+      canvas.height = Math.floor(cssH * ratio);
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      return { ctx, w: cssW, h: cssH };
+    }
+
+    function drawGrid(ctx, w, h, xTicks = 10, yTicks = 8) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#0a1328';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = '#27355f';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= xTicks; i++) {
+        const x = i * w / xTicks + 0.5;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+      }
+      for (let i = 0; i <= yTicks; i++) {
+        const y = i * h / yTicks + 0.5;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+    }
+
+    function drawAxes(ctx, w, h, labels) {
+      ctx.strokeStyle = '#7f8fc2';
+      ctx.lineWidth = 1.25;
+      ctx.beginPath(); ctx.moveTo(48, 12); ctx.lineTo(48, h - 28); ctx.lineTo(w - 10, h - 28); ctx.stroke();
+      ctx.fillStyle = '#b7c2e6';
+      ctx.font = '12px system-ui, sans-serif';
+      if (labels?.x) ctx.fillText(labels.x, w - 140, h - 8);
+      if (labels?.y) { ctx.save(); ctx.translate(16, 18); ctx.rotate(-Math.PI / 2); ctx.fillText(labels.y, 0, 0); ctx.restore(); }
+    }
+
+    function drawTag(ctx, x, y, lines, align='left', wLimit=null, hLimit=null) {
+      ctx.save();
+      ctx.font = '12px system-ui, sans-serif';
+      const padX = 8, padY = 6, lineH = 16;
+      const width = Math.max(...lines.map(s => ctx.measureText(s).width)) + padX * 2;
+      const height = lines.length * lineH + padY * 2 - 2;
+      let tx = x, ty = y;
+      if (align === 'right') tx -= width;
+      const cw = wLimit ?? ctx.canvas.clientWidth;
+      const ch = hLimit ?? ctx.canvas.clientHeight;
+      tx = clamp(tx, 6, cw - width - 6);
+      ty = clamp(ty, 6, ch - height - 6);
+      ctx.fillStyle = 'rgba(10,19,40,0.92)';
+      ctx.strokeStyle = '#5c73ba';
+      ctx.lineWidth = 1;
+      if (ctx.roundRect) {
+        ctx.beginPath(); ctx.roundRect(tx, ty, width, height, 10); ctx.fill(); ctx.stroke();
+      } else {
+        ctx.fillRect(tx, ty, width, height); ctx.strokeRect(tx, ty, width, height);
+      }
+      ctx.fillStyle = '#e8ecf7';
+      lines.forEach((s, i) => ctx.fillText(s, tx + padX, ty + padY + 12 + i * lineH));
+      ctx.restore();
+    }
+
+    function polarAngleToCanvas(angleDeg) { return rad(angleDeg - 90); }
+    function canvasToPolarAngle(dx, dy) {
+      let a = deg(Math.atan2(dy, dx)) + 90;
+      while (a > 180) a -= 360;
+      while (a <= -180) a += 360;
+      return a;
+    }
+
+    function drawWave() {
+      const { ctx, w, h } = fitCanvas(els.waveCanvas);
+      drawGrid(ctx, w, h, 10, 8);
+      drawAxes(ctx, w, h, { x: '時間', y: '振幅' });
+
+      const left = 48, right = w - 10, top = 12, bottom = h - 28;
+      const plotW = right - left, plotH = bottom - top;
+      const midY = top + plotH / 2;
+      const tau = tauFor(state.angle);
+      const f = state.freq;
+      const T = 2 / Math.max(f, 1);
+      const n = 1000;
+      const scale = plotH * 0.27;
+
+      function xToT(px) { return (px - left) / plotW * T; }
+      function tToX(t) { return left + (t / T) * plotW; }
+      function yMap(v) { return midY - v * scale; }
+      function A(t) { return Math.sin(2 * Math.PI * f * t); }
+      function B(t) { return Math.sin(2 * Math.PI * f * (t - tau)); }
+      function O(t) { return 0.5 * (A(t) + B(t)); }
+      function F(t) { return 0.5 * (A(t) - B(t)); }
+      function Y(t) { return state.a * O(t) + state.b * F(t); }
+
+      ctx.strokeStyle = '#4a5d97'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(left, midY + 0.5); ctx.lineTo(right, midY + 0.5); ctx.stroke();
+
+      const traces = [
+        { show: state.showA, color: '#56b4e9', fn: A, lw: 1.5 },
+        { show: state.showB, color: '#e69f00', fn: B, lw: 1.5 },
+        { show: state.showOmni, color: '#009e73', fn: O, lw: 1.7 },
+        { show: state.showFig8, color: '#cc79a7', fn: F, lw: 1.7 },
+        { show: state.showOut, color: '#f0e442', fn: Y, lw: 2.4 }
+      ];
+      for (const tr of traces) {
+        if (!tr.show) continue;
+        ctx.strokeStyle = tr.color;
+        ctx.lineWidth = tr.lw;
+        ctx.beginPath();
+        for (let i = 0; i < n; i++) {
+          const x = left + i / (n - 1) * plotW;
+          const y = yMap(tr.fn(xToT(x)));
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+
+      const tFixed = (state.hoverWaveT == null) ? null : clamp(state.hoverWaveT, 0, T);
+      if (tFixed != null) {
+        const x = tToX(tFixed);
+        ctx.strokeStyle = '#f0e442'; ctx.lineWidth = 1.3;
+        ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+        const values = { a: A(tFixed), b: B(tFixed), o: O(tFixed), f: F(tFixed), y: Y(tFixed) };
+        const lines = [
+          `t = ${fmtMs(tFixed)}`,
+          `A ${fmtSigned(values.a)}`,
+          `B ${fmtSigned(values.b)}`,
+          `Omni ${fmtSigned(values.o)}`,
+          `Fig-8 ${fmtSigned(values.f)}`,
+          `Out ${fmtSigned(values.y)}`
+        ];
+        drawTag(ctx, x + 10, top + 10, lines, x > w * 0.72 ? 'right' : 'left', w, h);
+      }
+
+      if (state.hoverWaveT == null) {
+        els.waveReadout.textContent = `Output = ${state.a.toFixed(2)}·Omni + ${state.b.toFixed(2)}·Figure-8。A と B の時間差は τ=${fmtUs(tau)} です。波形上でカーソルを動かすと時刻読み取りできます。`;
+      } else {
+        const t = state.hoverWaveT;
+        els.waveReadout.textContent = `t=${fmtMs(t)} / A=${fmtSigned(A(t))}, B=${fmtSigned(B(t))}, Omni=${fmtSigned(O(t))}, Figure-8=${fmtSigned(F(t))}, Output=${fmtSigned(Y(t))}`;
+      }
+    }
+
+    function drawPolar() {
+      const { ctx, w, h } = fitCanvas(els.polarCanvas);
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#0a1328'; ctx.fillRect(0, 0, w, h);
+      const cx = w / 2, cy = h / 2 + 8, R = Math.min(w, h) * 0.38;
+
+      ctx.strokeStyle = '#2a365f'; ctx.lineWidth = 1;
+      for (let i = 1; i <= 4; i++) { ctx.beginPath(); ctx.arc(cx, cy, R * i / 4, 0, Math.PI * 2); ctx.stroke(); }
+      for (let a = 0; a < 360; a += 30) {
+        const t = polarAngleToCanvas(a);
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + R * Math.cos(t), cy + R * Math.sin(t)); ctx.stroke();
+      }
+      ctx.fillStyle = '#b7c2e6'; ctx.font = '12px system-ui, sans-serif';
+      ctx.fillText('0°', cx - 10, cy - R - 10);
+      ctx.fillText('90°', cx + R + 8, cy + 4);
+      ctx.fillText('180°', cx - 16, cy + R + 16);
+      ctx.fillText('-90°', cx - R - 34, cy + 4);
+
+      ctx.strokeStyle = '#56b4e9'; ctx.lineWidth = 2.2; ctx.beginPath();
+      for (let a = -180; a <= 180; a++) {
+        const r = clamp(physMag(a, state.freq), 0, 1.2) * R;
+        const t = polarAngleToCanvas(a);
+        const x = cx + r * Math.cos(t), y = cy + r * Math.sin(t);
+        if (a === -180) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath(); ctx.stroke();
+
+      if (state.showIdeal) {
+        ctx.save(); ctx.setLineDash([7, 6]);
+        ctx.strokeStyle = '#cc79a7'; ctx.lineWidth = 2.1; ctx.beginPath();
+        for (let a = -180; a <= 180; a++) {
+          const r = clamp(idealMag(a), 0, 1.2) * R;
+          const t = polarAngleToCanvas(a);
+          const x = cx + r * Math.cos(t), y = cy + r * Math.sin(t);
+          if (a === -180) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.closePath(); ctx.stroke(); ctx.restore();
+      }
+
+      const rc = clamp(physMag(state.angle, state.freq), 0, 1.2) * R;
+      const tc = polarAngleToCanvas(state.angle);
+      const px = cx + rc * Math.cos(tc), py = cy + rc * Math.sin(tc);
+      ctx.strokeStyle = '#f0e442'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(px, py); ctx.stroke();
+      ctx.fillStyle = '#f0e442'; ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill();
+
+      const readAngle = (state.lockPolarAngle != null) ? state.lockPolarAngle : state.hoverPolarAngle;
+      const isLocked = state.lockPolarAngle != null;
+      if (readAngle != null) {
+        const ha = readAngle;
+        const hr = clamp(physMag(ha, state.freq), 0, 1.2) * R;
+        const ht = polarAngleToCanvas(ha);
+        const hx = cx + hr * Math.cos(ht), hy = cy + hr * Math.sin(ht);
+        ctx.save(); ctx.setLineDash([4, 5]);
+        ctx.strokeStyle = '#d0d7ef'; ctx.lineWidth = 1.3;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(hx, hy); ctx.stroke(); ctx.restore();
+        ctx.fillStyle = '#d0d7ef'; ctx.beginPath(); ctx.arc(hx, hy, 4.4, 0, Math.PI * 2); ctx.fill();
+        const lines = [
+          `${isLocked ? '固定' : '読取'} θ = ${fmtDeg(ha)}`,
+          `物理 ${physDb(ha, state.freq).toFixed(1)} dB`,
+          `理想 ${idealDb(ha).toFixed(1)} dB`,
+          `|G|=${physMag(ha, state.freq).toFixed(3)}`
+        ];
+        drawTag(ctx, hx + 10, hy - 12, lines, hx > w * 0.70 ? 'right' : 'left', w, h);
+      }
+
+      if (state.lockPolarAngle != null) {
+        const ha = state.lockPolarAngle;
+        els.polarReadout.textContent = `固定角度 ${fmtDeg(ha)} / ${fmtHz(state.freq)} で、物理2点モデル ${physDb(ha, state.freq).toFixed(1)} dB、理想一次指向性 ${idealDb(ha).toFixed(1)} dB。ダブルクリック / 右クリックで固定解除。`;
+      } else if (state.hoverPolarAngle != null) {
+        const ha = state.hoverPolarAngle;
+        els.polarReadout.textContent = `読取角度 ${fmtDeg(ha)} / ${fmtHz(state.freq)} で、物理2点モデル ${physDb(ha, state.freq).toFixed(1)} dB、理想一次指向性 ${idealDb(ha).toFixed(1)} dB。クリックで固定できます。`;
+      } else {
+        const gp = physDb(state.angle, state.freq);
+        const gi = idealDb(state.angle);
+        els.polarReadout.textContent = `上=0°、右=90° 表示。現在角度 ${state.angle}° / ${fmtHz(state.freq)} で、物理2点モデル ${gp.toFixed(1)} dB、理想一次指向性 ${gi.toFixed(1)} dB。ポーラー上をクリックするとその角度で固定できます。`;
+      }
+    }
+
+    function drawFR() {
+      const { ctx, w, h } = fitCanvas(els.frCanvas);
+      drawGrid(ctx, w, h, 12, 8);
+      drawAxes(ctx, w, h, { x: '周波数 (log)', y: '利得 (dB)' });
+      const left = 48, right = w - 10, top = 12, bottom = h - 28;
+      const plotW = right - left, plotH = bottom - top;
+      const fMin = 20, fMax = 20000, yMin = -60, yMax = 6;
+      const xMap = (f) => left + (log10(f) - log10(fMin)) / (log10(fMax) - log10(fMin)) * plotW;
+      const yMap = (db) => top + (yMax - db) / (yMax - yMin) * plotH;
+
+      ctx.fillStyle = '#b7c2e6'; ctx.font = '12px system-ui, sans-serif';
+      [20,50,100,200,500,1000,2000,5000,10000,20000].forEach(f => {
+        const x = xMap(f);
+        ctx.strokeStyle = '#334777'; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+        ctx.fillText(f >= 1000 ? (f / 1000) + 'k' : String(f), x - 12, bottom + 16);
+      });
+      [-60,-48,-36,-24,-12,0,6].forEach(db => {
+        const y = yMap(db);
+        ctx.strokeStyle = '#334777'; ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+        ctx.fillText(String(db), 8, y + 4);
+      });
+
+      ctx.strokeStyle = '#56b4e9'; ctx.lineWidth = 2.3; ctx.beginPath();
+      const N = 1000;
+      for (let i = 0; i < N; i++) {
+        const u = i / (N - 1);
+        const f = Math.pow(10, log10(fMin) + u * (log10(fMax) - log10(fMin)));
+        const db = clamp(physDb(state.angle, f), yMin, yMax);
+        const x = xMap(f), y = yMap(db);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      if (state.showIdeal) {
+        const dbIdeal = clamp(idealDb(state.angle), yMin, yMax);
+        ctx.save(); ctx.setLineDash([7, 6]);
+        ctx.strokeStyle = '#cc79a7'; ctx.lineWidth = 2; ctx.beginPath();
+        ctx.moveTo(left, yMap(dbIdeal)); ctx.lineTo(right, yMap(dbIdeal)); ctx.stroke(); ctx.restore();
+      }
+
+      const dbCur = clamp(physDb(state.angle, state.freq), yMin, yMax);
+      const cx = xMap(state.freq), cy = yMap(dbCur);
+      ctx.strokeStyle = '#f0e442'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(cx, top); ctx.lineTo(cx, bottom); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(left, cy); ctx.lineTo(right, cy); ctx.stroke();
+      ctx.fillStyle = '#f0e442'; ctx.beginPath(); ctx.arc(cx, cy, 4.8, 0, Math.PI * 2); ctx.fill();
+
+      if (state.hoverFrFreq != null) {
+        const hf = state.hoverFrFreq;
+        const hdb = clamp(physDb(state.angle, hf), yMin, yMax);
+        const hx = xMap(hf), hy = yMap(hdb);
+        ctx.save(); ctx.setLineDash([4, 5]);
+        ctx.strokeStyle = '#d0d7ef'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(hx, top); ctx.lineTo(hx, bottom); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(left, hy); ctx.lineTo(right, hy); ctx.stroke(); ctx.restore();
+        ctx.fillStyle = '#d0d7ef'; ctx.beginPath(); ctx.arc(hx, hy, 4.2, 0, Math.PI * 2); ctx.fill();
+        drawTag(ctx, hx + 10, hy - 12, [
+          `f = ${fmtHz(hf)}`,
+          `物理 ${physDb(state.angle, hf).toFixed(1)} dB`,
+          `理想 ${idealDb(state.angle).toFixed(1)} dB`,
+          `角度 ${fmtDeg(state.angle)}`
+        ], hx > w * 0.72 ? 'right' : 'left', w, h);
+      }
+
+      if (state.hoverFrFreq == null) {
+        els.frReadout.textContent = `角度 ${state.angle}° では、理想一次指向性は周波数一定ですが、物理2点モデルは高域ほどズレやすくなります。現在 ${fmtHz(state.freq)} で ${dbCur.toFixed(1)} dB。周波数応答上でカーソルを動かすと任意周波数を読み取れます。`;
+      } else {
+        const hf = state.hoverFrFreq;
+        els.frReadout.textContent = `カーソル周波数 ${fmtHz(hf)} / 角度 ${state.angle}° で、物理2点モデル ${physDb(state.angle, hf).toFixed(1)} dB、理想一次指向性 ${idealDb(state.angle).toFixed(1)} dB。`;
+      }
+    }
+
+    function render() {
+      updateLabels();
+      drawWave();
+      drawPolar();
+      drawFR();
+    }
+
+    function sync() {
+      els.freq.value = freqToSlider(state.freq);
+      els.dist.value = state.dist;
+      els.angle.value = state.angle;
+      els.speed.value = state.speed;
+      els.aMix.value = state.a;
+      els.bMix.value = state.b;
+      els.showA.checked = state.showA;
+      els.showB.checked = state.showB;
+      els.showOmni.checked = state.showOmni;
+      els.showFig8.checked = state.showFig8;
+      els.showOut.checked = state.showOut;
+      els.showIdeal.checked = state.showIdeal;
+      render();
+    }
+
+    function clearPolarLock() {
+      state.lockPolarAngle = null;
+      render();
+    }
+
+    function bindCanvasReadout() {
+      els.waveCanvas.addEventListener('pointermove', (ev) => {
+        const rect = els.waveCanvas.getBoundingClientRect();
+        const left = 48, right = rect.width - 10;
+        const x = ev.clientX - rect.left;
+        if (x < left || x > right) { state.hoverWaveT = null; render(); return; }
+        const plotW = right - left;
+        const T = 2 / Math.max(state.freq, 1);
+        state.hoverWaveT = clamp((x - left) / plotW * T, 0, T);
+        render();
+      });
+      els.waveCanvas.addEventListener('pointerleave', () => { state.hoverWaveT = null; render(); });
+
+      els.polarCanvas.addEventListener('pointermove', (ev) => {
+        if (state.lockPolarAngle != null) return;
+        const rect = els.polarCanvas.getBoundingClientRect();
+        const cx = rect.width / 2, cy = rect.height / 2 + 8;
+        const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+        const R = Math.min(rect.width, rect.height) * 0.38;
+        const dx = x - cx, dy = y - cy;
+        const rr = Math.hypot(dx, dy);
+        if (rr > R * 1.22 || rr < 8) { state.hoverPolarAngle = null; render(); return; }
+        state.hoverPolarAngle = canvasToPolarAngle(dx, dy);
+        render();
+      });
+      els.polarCanvas.addEventListener('pointerleave', () => { if (state.lockPolarAngle == null) { state.hoverPolarAngle = null; render(); } });
+      els.polarCanvas.addEventListener('click', (ev) => {
+        const rect = els.polarCanvas.getBoundingClientRect();
+        const cx = rect.width / 2, cy = rect.height / 2 + 8;
+        const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+        const R = Math.min(rect.width, rect.height) * 0.38;
+        const dx = x - cx, dy = y - cy;
+        const rr = Math.hypot(dx, dy);
+        if (rr > R * 1.22 || rr < 8) return;
+        const a = canvasToPolarAngle(dx, dy);
+        state.lockPolarAngle = a;
+        state.hoverPolarAngle = null;
+        state.angle = Math.round(a);
+        els.angle.value = state.angle;
+        render();
+      });
+      els.polarCanvas.addEventListener('dblclick', (ev) => { ev.preventDefault(); clearPolarLock(); });
+      els.polarCanvas.addEventListener('contextmenu', (ev) => { ev.preventDefault(); clearPolarLock(); });
+
+      els.frCanvas.addEventListener('pointermove', (ev) => {
+        const rect = els.frCanvas.getBoundingClientRect();
+        const left = 48, right = rect.width - 10;
+        const x = ev.clientX - rect.left;
+        if (x < left || x > right) { state.hoverFrFreq = null; render(); return; }
+        const plotW = right - left;
+        const fMin = 20, fMax = 20000;
+        const u = clamp((x - left) / plotW, 0, 1);
+        state.hoverFrFreq = Math.pow(10, log10(fMin) + u * (log10(fMax) - log10(fMin)));
+        render();
+      });
+      els.frCanvas.addEventListener('pointerleave', () => { state.hoverFrFreq = null; render(); });
+    }
+
+    function bind() {
+      els.freq.addEventListener('input', () => {
+        state.freq = sliderToFreq(parseInt(els.freq.value, 10));
+        render();
+      });
+
+      [['dist','dist'],['angle','angle'],['speed','speed'],['aMix','a'],['bMix','b']].forEach(([id,key]) => {
+        els[id].addEventListener('input', () => {
+          state[key] = (key === 'angle') ? parseInt(els[id].value, 10) : parseFloat(els[id].value);
+          if (key === 'angle') state.lockPolarAngle = null;
+          render();
+        });
+      });
+
+      [['showA','showA'],['showB','showB'],['showOmni','showOmni'],['showFig8','showFig8'],['showOut','showOut'],['showIdeal','showIdeal']].forEach(([id,key]) => {
+        els[id].addEventListener('change', () => { state[key] = !!els[id].checked; render(); });
+      });
+
+      els.presetOmni.addEventListener('click', () => setPreset('omni'));
+      els.presetFig8.addEventListener('click', () => setPreset('fig8'));
+      els.presetCardioid.addEventListener('click', () => setPreset('cardioid'));
+      els.presetSuper.addEventListener('click', () => setPreset('super'));
+      els.presetHyper.addEventListener('click', () => setPreset('hyper'));
+
+      $('sceneLow').addEventListener('click', () => { state.freq = 250; state.dist = 0.01; state.angle = 120; state.a = 0.5; state.b = 0.5; state.lockPolarAngle = null; sync(); });
+      $('sceneHigh').addEventListener('click', () => { state.freq = 6000; state.dist = 0.03; state.angle = 120; state.a = 0.5; state.b = 0.5; state.lockPolarAngle = null; sync(); });
+      $('sceneBack').addEventListener('click', () => { state.freq = 1000; state.dist = 0.02; state.angle = 180; state.a = 0.5; state.b = 0.5; state.lockPolarAngle = null; sync(); });
+      $('sceneReset').addEventListener('click', () => {
+        state.freq = 1000; state.dist = 0.02; state.angle = 0; state.speed = 343; state.a = 0.5; state.b = 0.5;
+        state.showA = true; state.showB = true; state.showOmni = true; state.showFig8 = true; state.showOut = true; state.showIdeal = true;
+        state.hoverPolarAngle = null; state.lockPolarAngle = null; state.hoverWaveT = null; state.hoverFrFreq = null; sync();
+      });
+
+      bindCanvasReadout();
+
+      let raf = 0;
+      window.addEventListener('resize', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(render); });
+    }
+
+    bind();
+    sync();
+  </script>
+</body>
+</html>

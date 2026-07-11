@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>4-Band Parametric EQ</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#171a21;
+    --panel2:#1d2230;
+    --line:#2d3444;
+    --text:#e8edf7;
+    --muted:#98a2b8;
+    --accent:#56a8ff;
+    --green:#49d17d;
+    --red:#ff6b6b;
+    --yellow:#ffcf5a;
+    --b1:#ff6b6b;
+    --b2:#56a8ff;
+    --b3:#49d17d;
+    --b4:#ffcf5a;
+  }
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:Inter,system-ui,sans-serif;
+    height:100%;
+    overflow:hidden;
+  }
+
+  #app{
+    display:grid;
+    grid-template-rows:auto auto 1fr;
+    height:100%;
+  }
+
+  /* =========================
+     TOP BAR
+  ========================= */
+  .topbar{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:10px 14px;
+    border-bottom:1px solid var(--line);
+    background:#131720;
+    flex-wrap:wrap;
+  }
+
+  .title{
+    font-weight:700;
+    font-size:18px;
+    margin-right:12px;
+  }
+
+  .group{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:6px 10px;
+  }
+
+  select,button,input{
+    accent-color:var(--accent);
+  }
+
+  select,button{
+    background:#202636;
+    color:var(--text);
+    border:1px solid #3a445b;
+    border-radius:8px;
+    padding:6px 10px;
+  }
+
+  button{
+    cursor:pointer;
+  }
+
+  .badge{
+    padding:6px 10px;
+    border-radius:999px;
+    font-size:12px;
+    background:#243047;
+    color:#b7d2ff;
+    border:1px solid #35507d;
+  }
+
+  .pill{
+    display:flex;
+    border:1px solid #3a445b;
+    border-radius:999px;
+    overflow:hidden;
+  }
+
+  .pill button{
+    border:none;
+    border-radius:0;
+    background:#202636;
+  }
+
+  .pill button.active{
+    background:var(--accent);
+    color:#08111d;
+    font-weight:700;
+  }
+
+  .fir-extra{
+    display:none;
+  }
+
+  body.fir .fir-extra{
+    display:flex;
+  }
+
+  /* =========================
+     CONTROL AREA
+  ========================= */
+  .controls{
+    display:grid;
+    grid-template-columns:repeat(6,minmax(180px,1fr));
+    gap:10px;
+    padding:10px;
+    border-bottom:1px solid var(--line);
+    overflow-x:auto;
+  }
+
+  .card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:10px;
+    min-width:180px;
+  }
+
+  .card h3{
+    margin:0 0 10px;
+    font-size:14px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+
+  .dot{
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    display:inline-block;
+  }
+
+  .row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:8px;
+  }
+
+  .row label{
+    width:50px;
+    color:var(--muted);
+    font-size:12px;
+  }
+
+  .row input[type=range]{
+    flex:1;
+  }
+
+  .value{
+    width:72px;
+    text-align:right;
+    font-size:12px;
+    color:#c9d4ea;
+  }
+
+  .bypass{
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    border:2px solid #5a647d;
+    background:#222938;
+    padding:0;
+  }
+
+  .bypass.active{
+    background:var(--green);
+    border-color:#8ff0b0;
+  }
+
+  /* =========================
+     VIEW
+  ========================= */
+  .view{
+    position:relative;
+    overflow:hidden;
+  }
+
+  canvas{
+    width:100%;
+    height:100%;
+    display:block;
+    background:#0f131c;
+  }
+
+  .impulse-toolbar{
+    position:absolute;
+    top:10px;
+    left:10px;
+    z-index:20;
+    display:none;
+    align-items:center;
+    gap:10px;
+    background:rgba(10,15,24,0.8);
+    border:1px solid #3a445b;
+    padding:8px 10px;
+    border-radius:10px;
+    backdrop-filter:blur(4px);
+  }
+
+  body.impulse .impulse-toolbar{
+    display:flex;
+  }
+
+  .warn{
+    position:absolute;
+    top:10px;
+    right:10px;
+    background:#5a1c1c;
+    border:1px solid #ff6b6b;
+    color:#ffd9d9;
+    padding:6px 10px;
+    border-radius:8px;
+    font-size:12px;
+    display:none;
+    z-index:30;
+  }
+
+  .warn.show{
+    display:block;
+  }
+
+</style>
+</head>
+<body class="iir response">
+<div id="app">
+
+  <!-- =========================
+       TOP BAR
+  ========================== -->
+  <div class="topbar">
+
+    <div class="title">4-Band Parametric EQ</div>
+
+    <div class="group">
+      <span>SR</span>
+      <select id="srSelect">
+        <option value="44100">44.1 kHz</option>
+        <option value="48000" selected>48 kHz</option>
+        <option value="88200">88.2 kHz</option>
+        <option value="96000">96 kHz</option>
+      </select>
+    </div>
+
+    <div class="group">
+      <span>Mode</span>
+      <button id="modeBtn">Switch FIR</button>
+      <div class="badge" id="modeBadge">IIR · Biquad Direct Form II</div>
+    </div>
+
+    <div class="group fir-extra">
+      <span>Phase</span>
+      <select id="firPhaseMode">
+        <option value="linear">Linear Phase</option>
+        <option value="minimum">Minimum Phase</option>
+      </select>
+    </div>
+
+    <div class="group">
+      <div class="pill">
+        <button id="viewResponse" class="active">応答</button>
+        <button id="viewImpulse">インパルス応答</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <button id="resetBtn">Reset</button>
+    </div>
+
+  </div>
+
+  <!-- =========================
+       CONTROLS
+  ========================== -->
+  <div class="controls" id="controls"></div>
+
+  <!-- =========================
+       VIEW
+  ========================== -->
+  <div class="view">
+
+    <div class="impulse-toolbar">
+      <span>Zoom</span>
+      <input type="range" id="zoomSlider" min="0" max="1" step="0.001" value="0">
+    </div>
+
+    <div class="warn" id="warnBox">RenderGuard: NaN / Inf detected</div>
+
+    <canvas id="canvas"></canvas>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   STATE
+========================================================= */
+
+const FIR_TAPS = 1023;
+const NPTS = 600;
+
+const COLORS = ["#ff6b6b","#56a8ff","#49d17d","#ffcf5a"];
+
+const DEFAULT_BANDS = [
+  {type:"peak", enabled:true, fLog:2.176, gain:0, qLog:0},
+  {type:"peak", enabled:true, fLog:2.699, gain:0, qLog:0},
+  {type:"peak", enabled:true, fLog:3.176, gain:0, qLog:0},
+  {type:"peak", enabled:true, fLog:3.699, gain:0, qLog:0},
+];
+
+const state = {
+  sr:48000,
+  mode:"iir",
+  firPhase:"linear",
+  view:"response",
+
+  bands: structuredClone(DEFAULT_BANDS),
+
+  hpf:{
+    enabled:false,
+    freq:40,
+    order:2
+  },
+
+  lpf:{
+    enabled:false,
+    freq:16000,
+    order:2
+  },
+
+  impulseZoom:0,
+
+  dirtyDSP:true,
+  dirtyDraw:true,
+
+  renderGuard:false,
+
+  cacheKey:"",
+  cachedFIR:null,
+};
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+let DPR = window.devicePixelRatio || 1;
+
+/* =========================================================
+   UI BUILD
+========================================================= */
+
+const controls = document.getElementById("controls");
+
+function createBandCard(i,name,color,types){
+  const b = state.bands[i];
+
+  const card = document.createElement("div");
+  card.className = "card";
+
+  card.innerHTML = `
+    <h3>
+      <span class="dot" style="background:${color}"></span>
+      ${name}
+      <button class="bypass ${b.enabled ? 'active':''}" id="bp${i}"></button>
+    </h3>
+
+    ${types ? `
+    <div class="row">
+      <label>Type</label>
+      <select id="type${i}">
+        ${types.map(t=>`<option value="${t.value}">${t.label}</option>`).join("")}
+      </select>
+    </div>
+    `:""}
+
+    <div class="row">
+      <label>Freq</label>
+      <input id="f${i}" type="range" min="1" max="4.3" step="0.001" value="${b.fLog}">
+      <div class="value" id="fv${i}"></div>
+    </div>
+
+    <div class="row">
+      <label>Gain</label>
+      <input id="g${i}" type="range" min="-18" max="18" step="0.5" value="${b.gain}">
+      <div class="value" id="gv${i}"></div>
+    </div>
+
+    <div class="row">
+      <label>Q</label>
+      <input id="q${i}" type="range" min="-0.7" max="1.1" step="0.001" value="${b.qLog}">
+      <div class="value" id="qv${i}"></div>
+    </div>
+  `;
+
+  controls.appendChild(card);
+
+  if(types){
+    const sel = card.querySelector(`#type${i}`);
+    sel.value = b.type;
+    sel.oninput = ()=>{
+      b.type = sel.value;
+      invalidateDSP();
+    };
+  }
+
+  const f = card.querySelector(`#f${i}`);
+  const g = card.querySelector(`#g${i}`);
+  const q = card.querySelector(`#q${i}`);
+
+  const fv = card.querySelector(`#fv${i}`);
+  const gv = card.querySelector(`#gv${i}`);
+  const qv = card.querySelector(`#qv${i}`);
+
+  function updateLabels(){
+    fv.textContent = formatFreq(logToFreq(+f.value));
+    gv.textContent = `${(+g.value).toFixed(1)} dB`;
+    qv.textContent = (Math.pow(10,+q.value)).toFixed(2);
+  }
+
+  updateLabels();
+
+  f.oninput = ()=>{
+    b.fLog = +f.value;
+    updateLabels();
+    invalidateDSP();
+  };
+
+  g.oninput = ()=>{
+    b.gain = +g.value;
+    updateLabels();
+    invalidateDSP();
+  };
+
+  q.oninput = ()=>{
+    b.qLog = +q.value;
+    updateLabels();
+    invalidateDSP();
+  };
+
+  const bp = card.querySelector(`#bp${i}`);
+  bp.onclick = ()=>{
+    b.enabled = !b.enabled;
+    bp.classList.toggle("active",b.enabled);
+    invalidateDSP();
+  };
+}
+
+function createFilterCard(type){
+  const obj = state[type];
+
+  const card = document.createElement("div");
+  card.className = "card";
+
+  card.innerHTML = `
+    <h3>${type.toUpperCase()}</h3>
+
+    <div class="row">
+      <label>Enable</label>
+      <input type="checkbox" id="${type}Enable" ${obj.enabled?"checked":""}>
+    </div>
+
+    <div class="row">
+      <label>Freq</label>
+      <input id="${type}Freq" type="range">
+      <div class="value" id="${type}FreqVal"></div>
+    </div>
+
+    <div class="row">
+      <label>Order</label>
+      <select id="${type}Order">
+        <option value="1">1st (6dB/oct)</option>
+        <option value="2">2nd (12dB/oct)</option>
+        <option value="3">3rd (18dB/oct)</option>
+        <option value="4">4th (24dB/oct)</option>
+      </select>
+    </div>
+  `;
+
+  controls.appendChild(card);
+
+  const freq = card.querySelector(`#${type}Freq`);
+  const freqVal = card.querySelector(`#${type}FreqVal`);
+  const enable = card.querySelector(`#${type}Enable`);
+  const order = card.querySelector(`#${type}Order`);
+
+  function updateFreqRange(){
+    const nyq = state.sr * 0.5;
+    const maxLog = Math.log10(nyq * 0.95);
+
+    freq.min = 1;
+    freq.max = maxLog;
+    freq.step = 0.001;
+
+    if(obj.freq > nyq*0.95){
+      obj.freq = nyq*0.95;
+    }
+
+    freq.value = Math.log10(obj.freq);
+    freqVal.textContent = formatFreq(obj.freq);
+  }
+
+  updateFreqRange();
+
+  freq.oninput = ()=>{
+    obj.freq = Math.pow(10,+freq.value);
+    freqVal.textContent = formatFreq(obj.freq);
+    invalidateDSP();
+  };
+
+  enable.oninput = ()=>{
+    obj.enabled = enable.checked;
+    invalidateDSP();
+  };
+
+  order.value = obj.order;
+
+  order.oninput = ()=>{
+    obj.order = +order.value;
+    invalidateDSP();
+  };
+
+  card.updateFreqRange = updateFreqRange;
+}
+
+createBandCard(0,"Band1 Low",COLORS[0],[
+  {value:"peak",label:"Peaking EQ"},
+  {value:"lowshelf",label:"Low Shelf"}
+]);
+
+createBandCard(1,"Band2 Low-Mid",COLORS[1],null);
+
+createBandCard(2,"Band3 High-Mid",COLORS[2],null);
+
+createBandCard(3,"Band4 High",COLORS[3],[
+  {value:"peak",label:"Peaking EQ"},
+  {value:"highshelf",label:"High Shelf"}
+]);
+
+createFilterCard("hpf");
+createFilterCard("lpf");
+
+/* =========================================================
+   UI EVENTS
+========================================================= */
+
+document.getElementById("srSelect").oninput = e=>{
+  state.sr = +e.target.value;
+
+  [...document.querySelectorAll(".card")].forEach(c=>{
+    if(c.updateFreqRange) c.updateFreqRange();
+  });
+
+  invalidateDSP();
+};
+
+document.getElementById("modeBtn").onclick = ()=>{
+  state.mode = state.mode === "iir" ? "fir" : "iir";
+
+  document.body.classList.toggle("fir",state.mode==="fir");
+  document.body.classList.toggle("iir",state.mode==="iir");
+
+  document.getElementById("modeBadge").textContent =
+    state.mode==="iir"
+      ? "IIR · Biquad Direct Form II"
+      : "FIR · 1023 taps";
+
+  document.getElementById("modeBtn").textContent =
+    state.mode==="iir"
+      ? "Switch FIR"
+      : "Switch IIR";
+
+  invalidateDSP();
+};
+
+document.getElementById("firPhaseMode").oninput = e=>{
+  state.firPhase = e.target.value;
+  invalidateDSP();
+};
+
+document.getElementById("viewResponse").onclick = ()=>{
+  state.view = "response";
+  document.body.classList.remove("impulse");
+  setViewButtons();
+  invalidateDraw();
+};
+
+document.getElementById("viewImpulse").onclick = ()=>{
+  state.view = "impulse";
+  document.body.classList.add("impulse");
+  setViewButtons();
+  invalidateDraw();
+};
+
+function setViewButtons(){
+  document.getElementById("viewResponse").classList.toggle("active",state.view==="response");
+  document.getElementById("viewImpulse").classList.toggle("active",state.view==="impulse");
+}
+
+document.getElementById("zoomSlider").oninput = e=>{
+  state.impulseZoom = +e.target.value;
+  invalidateDraw();
+};
+
+document.getElementById("resetBtn").onclick = ()=>{
+  state.sr = 48000;
+  state.mode = "iir";
+  state.firPhase = "linear";
+  state.view = "response";
+  state.bands = structuredClone(DEFAULT_BANDS);
+
+  state.hpf = {enabled:false,freq:40,order:2};
+  state.lpf = {enabled:false,freq:16000,order:2};
+
+  location.reload();
+};
+
+/* =========================================================
+   UTIL
+========================================================= */
+
+function invalidateDSP(){
+  state.dirtyDSP = true;
+  state.dirtyDraw = true;
+  requestRender();
+}
+
+function invalidateDraw(){
+  state.dirtyDraw = true;
+  requestRender();
+}
+
+function logToFreq(v){
+  return Math.pow(10,v);
+}
+
+function formatFreq(f){
+  if(f >= 1000){
+    return `${(f/1000).toFixed(f<10000?2:1)} kHz`;
+  }
+  return `${f.toFixed(1)} Hz`;
+}
+
+function db(v){
+  return 20*Math.log10(Math.max(v,1e-12));
+}
+
+function clamp(v,a,b){
+  return Math.max(a,Math.min(b,v));
+}
+
+function nextPow2(v){
+  return 2**Math.ceil(Math.log2(v));
+}
+
+/* =========================================================
+   DSP : BIQUADS
+========================================================= */
+
+function makePeak(fs,f0,Q,gainDB){
+  const A = Math.pow(10,gainDB/40);
+  const w0 = 2*Math.PI*f0/fs;
+  const alpha = Math.sin(w0)/(2*Q);
+  const c = Math.cos(w0);
+
+  let b0 = 1 + alpha*A;
+  let b1 = -2*c;
+  let b2 = 1 - alpha*A;
+  let a0 = 1 + alpha/A;
+  let a1 = -2*c;
+  let a2 = 1 - alpha/A;
+
+  return normalize(b0,b1,b2,a0,a1,a2);
+}
+
+function makeLowShelf(fs,f0,Q,gainDB){
+  const A = Math.pow(10,gainDB/40);
+  const w0 = 2*Math.PI*f0/fs;
+  const c = Math.cos(w0);
+  const s = Math.sin(w0);
+  const alpha = s/(2*Q);
+  const beta = 2*Math.sqrt(A)*alpha;
+
+  let b0 = A*((A+1)-(A-1)*c+beta);
+  let b1 = 2*A*((A-1)-(A+1)*c);
+  let b2 = A*((A+1)-(A-1)*c-beta);
+  let a0 = (A+1)+(A-1)*c+beta;
+  let a1 = -2*((A-1)+(A+1)*c);
+  let a2 = (A+1)+(A-1)*c-beta;
+
+  return normalize(b0,b1,b2,a0,a1,a2);
+}
+
+function makeHighShelf(fs,f0,Q,gainDB){
+  const A = Math.pow(10,gainDB/40);
+  const w0 = 2*Math.PI*f0/fs;
+  const c = Math.cos(w0);
+  const s = Math.sin(w0);
+  const alpha = s/(2*Q);
+  const beta = 2*Math.sqrt(A)*alpha;
+
+  let b0 = A*((A+1)+(A-1)*c+beta);
+  let b1 = -2*A*((A-1)+(A+1)*c);
+  let b2 = A*((A+1)+(A-1)*c-beta);
+  let a0 = (A+1)-(A-1)*c+beta;
+  let a1 = 2*((A-1)-(A+1)*c);
+  let a2 = (A+1)-(A-1)*c-beta;
+
+  return normalize(b0,b1,b2,a0,a1,a2);
+}
+
+function makeLPF(fs,f0,Q=0.707){
+  const w0 = 2*Math.PI*f0/fs;
+  const c = Math.cos(w0);
+  const s = Math.sin(w0);
+  const alpha = s/(2*Q);
+
+  let b0 = (1-c)/2;
+  let b1 = 1-c;
+  let b2 = (1-c)/2;
+  let a0 = 1+alpha;
+  let a1 = -2*c;
+  let a2 = 1-alpha;
+
+  return normalize(b0,b1,b2,a0,a1,a2);
+}
+
+function makeHPF(fs,f0,Q=0.707){
+  const w0 = 2*Math.PI*f0/fs;
+  const c = Math.cos(w0);
+  const s = Math.sin(w0);
+  const alpha = s/(2*Q);
+
+  let b0 = (1+c)/2;
+  let b1 = -(1+c);
+  let b2 = (1+c)/2;
+  let a0 = 1+alpha;
+  let a1 = -2*c;
+  let a2 = 1-alpha;
+
+  return normalize(b0,b1,b2,a0,a1,a2);
+}
+
+function normalize(b0,b1,b2,a0,a1,a2){
+  return {
+    b0:b0/a0,
+    b1:b1/a0,
+    b2:b2/a0,
+    a1:a1/a0,
+    a2:a2/a0
+  };
+}
+
+function evalBiquad(bq,w){
+  const c1 = Math.cos(w);
+  const s1 = Math.sin(w);
+  const c2 = Math.cos(2*w);
+  const s2 = Math.sin(2*w);
+
+  const nr = bq.b0 + bq.b1*c1 + bq.b2*c2;
+  const ni = -bq.b1*s1 - bq.b2*s2;
+
+  const dr = 1 + bq.a1*c1 + bq.a2*c2;
+  const di = -bq.a1*s1 - bq.a2*s2;
+
+  const denom = dr*dr + di*di;
+
+  return {
+    re:(nr*dr + ni*di)/denom,
+    im:(ni*dr - nr*di)/denom
+  };
+}
+
+function cmul(a,b){
+  return {
+    re:a.re*b.re - a.im*b.im,
+    im:a.re*b.im + a.im*b.re
+  };
+}
+
+/* =========================================================
+   DSP BUILD
+========================================================= */
+
+function buildSections(){
+  const fs = state.sr;
+  const sections = [];
+  const contributions = [];
+
+  state.bands.forEach((b,i)=>{
+    if(!b.enabled) return;
+
+    const f = logToFreq(b.fLog);
+    const Q = Math.pow(10,b.qLog);
+
+    let sec;
+
+    if(b.type==="peak"){
+      sec = makePeak(fs,f,Q,b.gain);
+    }else if(b.type==="lowshelf"){
+      sec = makeLowShelf(fs,f,Q,b.gain);
+    }else{
+      sec = makeHighShelf(fs,f,Q,b.gain);
+    }
+
+    sections.push(sec);
+    contributions.push({type:"band",index:i,sections:[sec]});
+  });
+
+  if(state.hpf.enabled){
+    const arr = [];
+    for(let i=0;i<Math.floor(state.hpf.order/2);i++){
+      arr.push(makeHPF(fs,state.hpf.freq));
+    }
+    if(state.hpf.order % 2){
+      arr.push(makeHPF(fs,state.hpf.freq,0.5));
+    }
+    sections.push(...arr);
+    contributions.push({type:"hpf",sections:arr});
+  }
+
+  if(state.lpf.enabled){
+    const arr = [];
+    for(let i=0;i<Math.floor(state.lpf.order/2);i++){
+      arr.push(makeLPF(fs,state.lpf.freq));
+    }
+    if(state.lpf.order % 2){
+      arr.push(makeLPF(fs,state.lpf.freq,0.5));
+    }
+    sections.push(...arr);
+    contributions.push({type:"lpf",sections:arr});
+  }
+
+  return {sections,contributions};
+}
+
+/* =========================================================
+   FIR DESIGN
+========================================================= */
+
+function makeFIR(){
+  const key = JSON.stringify({
+    sr:state.sr,
+    bands:state.bands,
+    hpf:state.hpf,
+    lpf:state.lpf,
+    phase:state.firPhase
+  });
+
+  if(key === state.cacheKey && state.cachedFIR){
+    return state.cachedFIR;
+  }
+
+  const fftSize = nextPow2(Math.max(4096,FIR_TAPS*8));
+
+  const Hre = new Float64Array(fftSize);
+  const Him = new Float64Array(fftSize);
+
+  const {sections} = buildSections();
+
+  for(let k=0;k<fftSize/2;k++){
+    const w = 2*Math.PI*k/fftSize;
+
+    let H = {re:1,im:0};
+
+    sections.forEach(sec=>{
+      H = cmul(H,evalBiquad(sec,w));
+    });
+
+    Hre[k] = H.re;
+    Him[k] = H.im;
+
+    if(k>0){
+      Hre[fftSize-k] = H.re;
+      Him[fftSize-k] = -H.im;
+    }
+  }
+
+  let h;
+
+  if(state.firPhase === "linear"){
+    h = linearPhaseFromSpectrum(Hre,Him,fftSize);
+  }else{
+    h = minimumPhaseFromSpectrum(Hre,Him,fftSize);
+  }
+
+  state.cacheKey = key;
+  state.cachedFIR = h;
+
+  return h;
+}
+
+function linearPhaseFromSpectrum(Hre,Him,fftSize){
+  const mag = new Float64Array(fftSize);
+
+  for(let i=0;i<fftSize;i++){
+    mag[i] = Math.sqrt(Hre[i]*Hre[i] + Him[i]*Him[i]);
+  }
+
+  const M = (FIR_TAPS-1)/2;
+
+  const h = new Float64Array(FIR_TAPS);
+
+  for(let n=0;n<FIR_TAPS;n++){
+    let sum = 0;
+
+    for(let k=0;k<fftSize/2;k++){
+      const phase = -2*Math.PI*k*(n-M)/fftSize;
+      sum += mag[k]*Math.cos(phase);
+    }
+
+    h[n] = sum/fftSize;
+  }
+
+  applyWindow(h);
+
+  return h;
+}
+
+function minimumPhaseFromSpectrum(Hre,Him,fftSize){
+  const logMag = new Float64Array(fftSize);
+
+  for(let i=0;i<fftSize;i++){
+    const mag = Math.sqrt(Hre[i]*Hre[i] + Him[i]*Him[i]);
+    logMag[i] = Math.log(Math.max(mag,1e-8));
+  }
+
+  const cep = ifftReal(logMag);
+
+  for(let n=1;n<fftSize/2;n++){
+    cep[n] *= 2;
+  }
+
+  for(let n=fftSize/2+1;n<fftSize;n++){
+    cep[n] = 0;
+  }
+
+  const spec = fftReal(cep);
+
+  const hre = new Float64Array(fftSize);
+  const him = new Float64Array(fftSize);
+
+  for(let k=0;k<fftSize;k++){
+    const expv = Math.exp(spec.re[k]);
+    hre[k] = expv * Math.cos(spec.im[k]);
+    him[k] = expv * Math.sin(spec.im[k]);
+  }
+
+  const hfull = ifftComplex(hre,him);
+
+  const h = new Float64Array(FIR_TAPS);
+
+  for(let i=0;i<FIR_TAPS;i++){
+    h[i] = hfull[i];
+  }
+
+  applyWindow(h);
+
+  return h;
+}
+
+/* =========================================================
+   FFT HELPERS
+========================================================= */
+
+function fftReal(input){
+  const N = input.length;
+  const re = new Float64Array(N);
+  const im = new Float64Array(N);
+
+  for(let k=0;k<N;k++){
+    let sr=0,si=0;
+
+    for(let n=0;n<N;n++){
+      const ph = -2*Math.PI*k*n/N;
+      sr += input[n]*Math.cos(ph);
+      si += input[n]*Math.sin(ph);
+    }
+
+    re[k]=sr;
+    im[k]=si;
+  }
+
+  return {re,im};
+}
+
+function ifftReal(input){
+  const N = input.length;
+  const out = new Float64Array(N);
+
+  for(let n=0;n<N;n++){
+    let s=0;
+
+    for(let k=0;k<N;k++){
+      const ph = 2*Math.PI*k*n/N;
+      s += input[k]*Math.cos(ph);
+    }
+
+    out[n]=s/N;
+  }
+
+  return out;
+}
+
+function ifftComplex(re,im){
+  const N = re.length;
+  const out = new Float64Array(N);
+
+  for(let n=0;n<N;n++){
+    let s=0;
+
+    for(let k=0;k<N;k++){
+      const ph = 2*Math.PI*k*n/N;
+      s += re[k]*Math.cos(ph) - im[k]*Math.sin(ph);
+    }
+
+    out[n]=s/N;
+  }
+
+  return out;
+}
+
+function applyWindow(h){
+  const N = h.length;
+
+  for(let n=0;n<N;n++){
+    const w = 0.5 - 0.5*Math.cos(2*Math.PI*n/(N-1));
+    h[n] *= w;
+  }
+}
+
+/* =========================================================
+   RESPONSE COMPUTE
+========================================================= */
+
+let responseData = null;
+
+function computeResponse(){
+  const fs = state.sr;
+  const fmax = fs*0.5*0.98;
+
+  const freqs = [];
+  const mag = [];
+  const phase = [];
+
+  const indiv = [];
+
+  const {sections,contributions} = buildSections();
+
+  for(let c=0;c<contributions.length;c++){
+    indiv.push({
+      mag:[],
+      phase:[]
+    });
+  }
+
+  for(let i=0;i<NPTS;i++){
+    const t = i/(NPTS-1);
+    const f = 10**(Math.log10(10)*(1-t) + Math.log10(fmax)*t);
+    const w = 2*Math.PI*f/fs;
+
+    let H = {re:1,im:0};
+
+    sections.forEach(sec=>{
+      H = cmul(H,evalBiquad(sec,w));
+    });
+
+    const m = Math.sqrt(H.re*H.re + H.im*H.im);
+    const p = Math.atan2(H.im,H.re)*180/Math.PI;
+
+    freqs.push(f);
+    mag.push(db(m));
+    phase.push(p);
+
+    contributions.forEach((contrib,idx)=>{
+      let X = {re:1,im:0};
+
+      contrib.sections.forEach(sec=>{
+        X = cmul(X,evalBiquad(sec,w));
+      });
+
+      indiv[idx].mag.push(db(Math.sqrt(X.re*X.re + X.im*X.im)));
+      indiv[idx].phase.push(Math.atan2(X.im,X.re)*180/Math.PI);
+    });
+  }
+
+  responseData = {
+    freqs,
+    mag,
+    phase,
+    indiv
+  };
+}
+
+/* =========================================================
+   RENDER
+========================================================= */
+
+function resizeCanvas(){
+  DPR = window.devicePixelRatio || 1;
+
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+
+  canvas.width = Math.floor(w*DPR);
+  canvas.height = Math.floor(h*DPR);
+
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+
+window.addEventListener("resize",()=>{
+  resizeCanvas();
+  invalidateDraw();
+});
+
+resizeCanvas();
+
+function requestRender(){
+  if(requestRender.pending) return;
+
+  requestRender.pending = true;
+
+  requestAnimationFrame(()=>{
+    requestRender.pending = false;
+
+    if(state.dirtyDSP){
+      computeResponse();
+      state.dirtyDSP = false;
+    }
+
+    render();
+    state.dirtyDraw = false;
+  });
+}
+
+function render(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+
+  ctx.clearRect(0,0,w,h);
+
+  state.renderGuard = false;
+
+  try{
+    if(state.view==="response"){
+      renderResponse(w,h);
+    }else{
+      renderImpulse(w,h);
+    }
+  }catch(err){
+    console.error(err);
+    state.renderGuard = true;
+  }
+
+  document.getElementById("warnBox").classList.toggle("show",state.renderGuard);
+}
+
+/* =========================================================
+   RESPONSE VIEW
+========================================================= */
+
+function renderResponse(w,h){
+
+  const topH = h*0.55;
+  const botH = h-topH;
+
+  drawResponseGraph(0,0,w,topH,true);
+  drawResponseGraph(0,topH,w,botH,false);
+}
+
+function drawResponseGraph(x,y,w,h,isMag){
+
+  const left = 60;
+  const right = 20;
+  const top = 20;
+  const bottom = 30;
+
+  const gx = x + left;
+  const gy = y + top;
+  const gw = w-left-right;
+  const gh = h-top-bottom;
+
+  ctx.strokeStyle="#2a3140";
+  ctx.lineWidth=1;
+
+  ctx.strokeRect(gx,gy,gw,gh);
+
+  const fs = state.sr;
+  const fmax = fs*0.5*0.98;
+
+  const freqLines = [10,20,50,100,200,500,1000,2000,5000,10000,20000,40000];
+
+  freqLines.forEach(f=>{
+    if(f>fmax) return;
+
+    const px = gx + mapFreq(f,10,fmax)*gw;
+
+    ctx.beginPath();
+    ctx.moveTo(px,gy);
+    ctx.lineTo(px,gy+gh);
+    ctx.stroke();
+  });
+
+  const yLines = isMag
+    ? [-18,-12,-6,0,6,12,18]
+    : [-180,-90,0,90,180];
+
+  yLines.forEach(v=>{
+    const py = gy + mapY(v,isMag)*gh;
+
+    ctx.beginPath();
+    ctx.moveTo(gx,py);
+    ctx.lineTo(gx+gw,py);
+    ctx.stroke();
+
+    ctx.fillStyle="#8f99b2";
+    ctx.font="11px sans-serif";
+    ctx.fillText(v + (isMag?" dB":"°"),8,py+4);
+  });
+
+  ctx.fillStyle="#9fb1d8";
+  ctx.font="13px sans-serif";
+  ctx.fillText(isMag ? "Magnitude Response" : "Phase Response",gx,14+y);
+
+  responseData.indiv.forEach((d,i)=>{
+    ctx.strokeStyle = COLORS[i % COLORS.length];
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4,4]);
+
+    ctx.beginPath();
+
+    responseData.freqs.forEach((f,idx)=>{
+      const px = gx + mapFreq(f,10,fmax)*gw;
+      const val = isMag ? d.mag[idx] : d.phase[idx];
+      const py = gy + mapY(val,isMag)*gh;
+
+      if(idx===0) ctx.moveTo(px,py);
+      else ctx.lineTo(px,py);
+    });
+
+    ctx.stroke();
+  });
+
+  ctx.setLineDash([]);
+
+  ctx.lineWidth=3;
+  ctx.strokeStyle="#6eb7ff";
+
+  ctx.beginPath();
+
+  responseData.freqs.forEach((f,idx)=>{
+    const px = gx + mapFreq(f,10,fmax)*gw;
+    const val = isMag ? responseData.mag[idx] : responseData.phase[idx];
+    const py = gy + mapY(val,isMag)*gh;
+
+    if(!Number.isFinite(py)){
+      state.renderGuard = true;
+    }
+
+    if(idx===0) ctx.moveTo(px,py);
+    else ctx.lineTo(px,py);
+  });
+
+  ctx.stroke();
+
+  if(isMag){
+    ctx.lineTo(gx+gw,gy+mapY(-24,true)*gh);
+    ctx.lineTo(gx,gy+mapY(-24,true)*gh);
+    ctx.closePath();
+
+    const grad = ctx.createLinearGradient(0,gy,0,gy+gh);
+    grad.addColorStop(0,"rgba(86,168,255,0.28)");
+    grad.addColorStop(1,"rgba(86,168,255,0.02)");
+
+    ctx.fillStyle=grad;
+    ctx.fill();
+  }
+}
+
+function mapFreq(f,fmin,fmax){
+  return (Math.log10(f)-Math.log10(fmin)) /
+         (Math.log10(fmax)-Math.log10(fmin));
+}
+
+function mapY(v,isMag){
+  if(isMag){
+    return 1 - ((v+24)/48);
+  }
+  return 1 - ((v+180)/360);
+}
+
+/* =========================================================
+   IMPULSE VIEW
+========================================================= */
+
+function renderImpulse(w,h){
+
+  let hsig;
+
+  if(state.mode==="iir"){
+    hsig = makeIIRImpulse();
+  }else{
+    hsig = makeFIR();
+  }
+
+  const peak = findPeak(hsig);
+
+  const zoom = state.impulseZoom;
+
+  const maxVisible = hsig.length - peak;
+  const visible = Math.max(
+    8,
+    Math.floor(maxVisible * Math.pow(1-zoom,2))
+  );
+
+  const start = peak;
+  const end = clamp(start+visible,start+8,hsig.length);
+
+  const data = hsig.slice(start,end);
+
+  const maxAbs = Math.max(...data.map(v=>Math.abs(v)),1e-9);
+
+  const left=40;
+  const right=20;
+  const top=30;
+  const bottom=40;
+
+  const gx=left;
+  const gy=top;
+  const gw=w-left-right;
+  const gh=h-top-bottom;
+
+  ctx.strokeStyle="#2d3444";
+  ctx.strokeRect(gx,gy,gw,gh);
+
+  const centerY = gy + gh/2;
+
+  ctx.strokeStyle="#566178";
+
+  ctx.beginPath();
+  ctx.moveTo(gx,centerY);
+  ctx.lineTo(gx+gw,centerY);
+  ctx.stroke();
+
+  const barW = clamp(gw/data.length,1,10);
+
+  data.forEach((v,i)=>{
+    const x = gx + i*(gw/data.length);
+
+    const hh = (v/maxAbs)*(gh*0.45);
+
+    ctx.fillStyle = v>=0 ? "#6eb7ff" : "#ff8f8f";
+
+    ctx.fillRect(
+      x,
+      centerY - Math.max(0,hh),
+      barW,
+      Math.abs(hh)
+    );
+
+    if(!Number.isFinite(hh)){
+      state.renderGuard = true;
+    }
+  });
+
+  ctx.fillStyle="#c6d3ee";
+  ctx.font="13px sans-serif";
+  ctx.fillText(
+    `${state.mode.toUpperCase()} Impulse Response (${data.length} samples visible)`,
+    gx,
+    18
+  );
+}
+
+function makeIIRImpulse(){
+  const N = 2048;
+
+  const {sections} = buildSections();
+
+  const out = new Float64Array(N);
+
+  sections.forEach(sec=>{
+    let x1=0,x2=0,y1=0,y2=0;
+
+    for(let n=0;n<N;n++){
+      const x = (n===0)?1:0;
+
+      const y =
+        sec.b0*x +
+        sec.b1*x1 +
+        sec.b2*x2 -
+        sec.a1*y1 -
+        sec.a2*y2;
+
+      out[n] += y;
+
+      x2=x1;
+      x1=x;
+
+      y2=y1;
+      y1=y;
+    }
+  });
+
+  return out;
+}
+
+function findPeak(arr){
+  let idx=0;
+  let m=0;
+
+  for(let i=0;i<arr.length;i++){
+    const a=Math.abs(arr[i]);
+    if(a>m){
+      m=a;
+      idx=i;
+    }
+  }
+
+  return idx;
+}
+
+/* =========================================================
+   START
+========================================================= */
+
+requestRender();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Parametric EQ – IIR / FIR(min) / FIR(linear) </title>
+
+<!-- Chart.js（UMD） -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+  body{
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background:#f8fafc;
+    margin:20px;
+  }
+  h2{ margin:0 0 12px 0; }
+  .card{
+    background:#fff;
+    border-radius:14px;
+    padding:16px;
+    box-shadow:0 4px 12px rgba(0,0,0,.08);
+    margin-bottom:18px;
+  }
+  .row{
+    display:grid;
+    grid-template-columns: 190px 1fr;
+    gap:12px;
+    align-items:center;
+    margin-top:12px;
+  }
+  label{ font-size:14px; color:#0f172a; }
+  input[type="range"], select{ width:100%; }
+  select{
+    padding:8px;
+    border-radius:10px;
+    border:1px solid #cbd5e1;
+    background:#fff;
+  }
+  .meta{
+    font-size:12px;
+    color:#475569;
+    margin-top:6px;
+    line-height:1.45;
+  }
+  .note{
+    font-size:12px;
+    color:#555;
+    margin-top:12px;
+    line-height:1.5;
+  }
+
+  /* ★ グラフ高さ：500px保証 */
+  .chart-wrapper{ height:500px; }
+  canvas{ width:100% !important; height:100% !important; }
+</style>
+</head>
+<body>
+
+<h2>Parametric EQ</h2>
+
+<div class="card">
+  <div class="chart-wrapper">
+    <canvas id="eqChart" height="500"></canvas>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <label>Filter Type</label>
+    <select id="type">
+      <option value="iir">IIR（biquad / minimum phase）</option>
+      <option value="firMin">FIR（Minimum Phase）</option>
+      <option value="firLin">FIR（Linear Phase）</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <label>Frequency</label>
+    <div>
+      <div><strong><span id="fVal"></span> Hz</strong></div>
+      <input type="range" id="freq" min="0" max="1000" value="566">
+    </div>
+  </div>
+
+  <div class="row">
+    <label>Gain</label>
+    <div>
+      <div><strong><span id="gVal"></span> dB</strong></div>
+      <input type="range" id="gain" min="-18" max="18" step="0.1" value="6">
+    </div>
+  </div>
+
+  <div class="row">
+    <label>Q</label>
+    <div>
+      <div><strong><span id="qVal"></span></strong></div>
+      <input type="range" id="q" min="0.2" max="10" step="0.01" value="1.00">
+    </div>
+  </div>
+
+  <div class="row">
+    <label>Taps（FIRのみ・奇数）</label>
+    <div>
+      <div><strong><span id="tapsVal"></span> taps</strong></div>
+      <input type="range" id="taps" min="33" max="2049" step="2" value="513">
+      <div class="meta" id="delayInfo"></div>
+    </div>
+  </div>
+
+  <div class="note">
+    ・X軸：対数（20 Hz ～ 20 kHz）<br/>
+    ・振幅：−18 dB ～ +18 dB（固定）<br/>
+    ・位相：−180° ～ +180°（atan2、アンラップ無し / 固定）<br/>
+    ・FIR(Linear) は「一定遅延」なので wrapped 表示では鋸歯状になります（正常）。
+  </div>
+</div>
+
+<script>
+/* ========= 基本定数 ========= */
+const fs = 48000;
+const F_MIN = 20;
+const F_MAX = 20000;
+const PLOT_POINTS = 420;
+const NFFT = 4096;         // 2^n（FFT簡略化）
+const EPS = 1e-10;
+
+/* ========= UI ========= */
+const typeSel = document.getElementById("type");
+const freqSl  = document.getElementById("freq");
+const gainSl  = document.getElementById("gain");
+const qSl     = document.getElementById("q");
+const tapsSl  = document.getElementById("taps");
+
+const fVal = document.getElementById("fVal");
+const gVal = document.getElementById("gVal");
+const qVal = document.getElementById("qVal");
+const tapsVal = document.getElementById("tapsVal");
+const delayInfo = document.getElementById("delayInfo");
+
+/* ========= 対数周波数 ========= */
+function makeLogFreqs() {
+  const arr = [];
+  const logMin = Math.log10(F_MIN);
+  const logMax = Math.log10(F_MAX);
+  for (let i=0;i<PLOT_POINTS;i++){
+    const t = i/(PLOT_POINTS-1);
+    arr.push(Math.pow(10, logMin + (logMax-logMin)*t));
+  }
+  return arr;
+}
+const plotFreqs = makeLogFreqs();
+
+/* slider(0..1000) -> Hz(20..20000) */
+function sliderToFreq(v){
+  return F_MIN * Math.pow(10, (v/1000)*3);
+}
+
+/* ========= IIR（RBJ peaking biquad） ========= */
+function biquadPeaking(f0, gainDb, Q) {
+  const A = Math.pow(10, gainDb/40);
+  const w0 = 2*Math.PI*f0/fs;
+  const alpha = Math.sin(w0)/(2*Q);
+  const cosw0 = Math.cos(w0);
+
+  let b0 = 1 + alpha*A;
+  let b1 = -2*cosw0;
+  let b2 = 1 - alpha*A;
+  let a0 = 1 + alpha/A;
+  let a1 = -2*cosw0;
+  let a2 = 1 - alpha/A;
+
+  return { b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0 };
+}
+
+function iirH(bq, f){
+  const w = 2*Math.PI*f/fs;
+  const c1 = Math.cos(w), s1 = Math.sin(w);
+  const c2 = Math.cos(2*w), s2 = Math.sin(2*w);
+
+  const numRe = bq.b0 + bq.b1*c1 + bq.b2*c2;
+  const numIm = -(bq.b1*s1 + bq.b2*s2);
+  const denRe = 1 + bq.a1*c1 + bq.a2*c2;
+  const denIm = -(bq.a1*s1 + bq.a2*s2);
+
+  const den = denRe*denRe + denIm*denIm;
+  return { re:(numRe*denRe + numIm*denIm)/den, im:(numIm*denRe - numRe*denIm)/den };
+}
+
+/* ========= FFT（radix-2） ========= */
+function bitReverse(x, bits){
+  let y=0;
+  for(let i=0;i<bits;i++){ y = (y<<1) | (x&1); x >>= 1; }
+  return y;
+}
+
+function fftRadix2(re, im, inverse=false){
+  const n = re.length;
+  const bits = Math.log2(n);
+
+  for(let i=0;i<n;i++){
+    const j = bitReverse(i, bits);
+    if(j>i){
+      [re[i], re[j]] = [re[j], re[i]];
+      [im[i], im[j]] = [im[j], im[i]];
+    }
+  }
+
+  for(let size=2; size<=n; size<<=1){
+    const half = size>>1;
+    const sign = inverse ? 1 : -1;
+    const theta = sign * (2*Math.PI/size);
+
+    for(let start=0; start<n; start+=size){
+      for(let k=0;k<half;k++){
+        const i = start + k;
+        const j = i + half;
+        const wr = Math.cos(theta*k);
+        const wi = Math.sin(theta*k);
+
+        const tr = wr*re[j] - wi*im[j];
+        const ti = wr*im[j] + wi*re[j];
+
+        re[j] = re[i] - tr;
+        im[j] = im[i] - ti;
+        re[i] = re[i] + tr;
+        im[i] = im[i] + ti;
+      }
+    }
+  }
+
+  if(inverse){
+    for(let i=0;i<n;i++){ re[i]/=n; im[i]/=n; }
+  }
+}
+
+function ifft(re, im){
+  const r = re.slice();
+  const ii = im.slice();
+  fftRadix2(r, ii, true);
+  return {re:r, im:ii};
+}
+
+/* ========= FIR設計（IIRの|H|をターゲット化） ========= */
+function buildMagGridFromIIR(bq){
+  const mag = new Array(NFFT).fill(1);
+  const half = NFFT/2;
+  for(let k=0;k<=half;k++){
+    const f = (k*fs)/NFFT;
+    const H = iirH(bq, f);
+    const m = Math.sqrt(H.re*H.re + H.im*H.im);
+    mag[k] = m;
+    if(k>0 && k<half) mag[NFFT-k] = m;
+  }
+  return mag;
+}
+
+function buildLinearPhaseSpectrum(mag, delaySamples){
+  const re = new Array(NFFT);
+  const im = new Array(NFFT);
+  for(let k=0;k<NFFT;k++){
+    const w = 2*Math.PI*k/NFFT;
+    const ph = -w*delaySamples;
+    re[k] = mag[k]*Math.cos(ph);
+    im[k] = mag[k]*Math.sin(ph);
+  }
+  return {re, im};
+}
+
+function buildMinimumPhaseSpectrum(mag){
+  const logRe = new Array(NFFT);
+  const logIm = new Array(NFFT).fill(0);
+  for(let k=0;k<NFFT;k++) logRe[k] = Math.log(Math.max(EPS, mag[k]));
+
+  // c = ifft(log|H|)
+  fftRadix2(logRe, logIm, true);
+  const c = logRe;
+
+  // minimum-phase lifter
+  const cfRe = new Array(NFFT).fill(0);
+  const cfIm = new Array(NFFT).fill(0);
+  const half = NFFT/2;
+  cfRe[0] = c[0];
+  for(let n=1;n<half;n++) cfRe[n] = 2*c[n];
+  cfRe[half] = c[half];
+
+  // Cf = fft(cf)
+  fftRadix2(cfRe, cfIm, false);
+
+  // H = exp(Cf)
+  const Hre = new Array(NFFT);
+  const Him = new Array(NFFT);
+  for(let k=0;k<NFFT;k++){
+    const a = cfRe[k];
+    const b = cfIm[k];
+    const ea = Math.exp(a);
+    Hre[k] = ea*Math.cos(b);
+    Him[k] = ea*Math.sin(b);
+  }
+  return {re:Hre, im:Him};
+}
+
+/* ★ 重要：FIR(Linear) は「遅延点Dを中心に」L点を切り出す（前回の見直し点） */
+function makeLinearPhaseTapsFromSpectrum(specRe, specIm, taps){
+  const hfull = ifft(specRe, specIm).re; // 実部
+  const L = taps;
+  const mid = (L - 1) / 2;
+
+  // linear phase は D = mid を想定（整数）
+  const D = mid;
+
+  // hfull は長さNFFTの循環系列なので、中心Dの周りを切り出す
+  const start = Math.round(D - mid); // = 0 になるのが理想だが、一般式で書く
+  const h = new Array(L);
+
+  for(let n=0;n<L;n++){
+    let idx = start + n;
+    // wrap
+    idx = ((idx % NFFT) + NFFT) % NFFT;
+    h[n] = hfull[idx];
+  }
+  return h;
+}
+
+/* min-phase taps（先頭からL点：最小位相はエネルギーが先頭寄り） */
+function makeMinimumPhaseTapsFromSpectrum(specRe, specIm, taps){
+  const hfull = ifft(specRe, specIm).re;
+  return hfull.slice(0, taps);
+}
+
+function firHFromTaps(h, f){
+  const w = 2*Math.PI*f/fs;
+  let re=0, im=0;
+  for(let n=0;n<h.length;n++){
+    const c = Math.cos(w*n);
+    const s = Math.sin(w*n);
+    re += h[n]*c;
+    im -= h[n]*s;
+  }
+  return {re, im};
+}
+
+/* ========= Chart.js ========= */
+const ctx = document.getElementById("eqChart");
+const chart = new Chart(ctx, {
+  type: "line",
+  data: {
+    datasets: [
+      { label:"Gain (dB)",  yAxisID:"mag",   borderColor:"#2563eb", borderWidth:2, pointRadius:0, data:[] },
+      { label:"Phase (deg)",yAxisID:"phase", borderColor:"#dc2626", borderWidth:2, pointRadius:0, data:[] },
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false, // ★ 500px固定を効かせる
+    interaction: { mode:"index", intersect:false },
+    scales: {
+      x: { type:"logarithmic", min:F_MIN, max:F_MAX, title:{ display:true, text:"Frequency (Hz)" } },
+      mag: {
+        position:"left",
+        min:-18, max:18, // ★ 固定
+        title:{ display:true, text:"Gain (dB)" },
+        grid:{ color:"rgba(15,23,42,0.08)" }
+      },
+      phase: {
+        position:"right",
+        min:-180, max:180, // ★ 固定（wrapped）
+        title:{ display:true, text:"Phase (deg)" },
+        grid:{ drawOnChartArea:false }
+      }
+    }
+  }
+});
+
+/* ========= UI反映（taps/遅延表示） ========= */
+function getOddTaps(){
+  let L = Number(tapsSl.value);
+  if(L % 2 === 0) L += 1;
+  L = Math.max(33, Math.min(2049, L));
+  tapsSl.value = String(L);
+  return L;
+}
+
+function updateDelayLabel(mode, L){
+  tapsVal.textContent = String(L);
+
+  if(mode === "iir"){
+    tapsSl.disabled = true;
+    delayInfo.textContent = "IIR：taps/遅延の概念は表示対象外（FIRのみ）。";
+    return;
+  }
+
+  tapsSl.disabled = false;
+
+  if(mode === "firLin"){
+    const D = (L - 1) / 2;
+    const ms = 1000 * D / fs;
+    delayInfo.textContent = `Linear Phase：定遅延 = ${(D).toFixed(0)} samples / ${ms.toFixed(2)} ms`;
+  } else {
+    delayInfo.textContent = "Minimum Phase：定遅延ではない（周波数依存）。";
+  }
+}
+
+/* ========= 更新本体 ========= */
+function update(){
+  const f0 = sliderToFreq(Number(freqSl.value));
+  const g  = Number(gainSl.value);
+  const Q  = Number(qSl.value);
+  const mode = typeSel.value;
+  const L = getOddTaps();
+
+  fVal.textContent = Math.round(f0);
+  gVal.textContent = g.toFixed(1);
+  qVal.textContent = Q.toFixed(2);
+  updateDelayLabel(mode, L);
+
+  const bq = biquadPeaking(f0, g, Q);
+
+  let magData = [];
+  let phData  = [];
+
+  if(mode === "iir"){
+    for(const f of plotFreqs){
+      const H = iirH(bq, f);
+      const mag = Math.sqrt(H.re*H.re + H.im*H.im);
+      const ph  = Math.atan2(H.im, H.re) * 180/Math.PI; // wrapped ±180
+      magData.push({x:f, y:20*Math.log10(Math.max(EPS, mag))});
+      phData.push({x:f, y:ph});
+    }
+  } else {
+    // FIR: |H|ターゲット→係数生成→DTFT
+    const magGrid = buildMagGridFromIIR(bq);
+
+    let taps;
+    if(mode === "firLin"){
+      const D = (L - 1) / 2;
+      const spec = buildLinearPhaseSpectrum(magGrid, D);
+      taps = makeLinearPhaseTapsFromSpectrum(spec.re, spec.im, L);
+    } else {
+      const spec = buildMinimumPhaseSpectrum(magGrid);
+      taps = makeMinimumPhaseTapsFromSpectrum(spec.re, spec.im, L);
+    }
+
+    for(const f of plotFreqs){
+      const H = firHFromTaps(taps, f);
+      const mag = Math.sqrt(H.re*H.re + H.im*H.im);
+      const ph  = Math.atan2(H.im, H.re) * 180/Math.PI; // wrapped ±180
+      magData.push({x:f, y:20*Math.log10(Math.max(EPS, mag))});
+      phData.push({x:f, y:ph});
+    }
+  }
+
+  chart.data.datasets[0].data = magData;
+  chart.data.datasets[1].data = phData;
+  chart.update();
+}
+
+/* ========= イベント ========= */
+typeSel.addEventListener("change", update);
+freqSl.addEventListener("input", update);
+gainSl.addEventListener("input", update);
+qSl.addEventListener("input", update);
+tapsSl.addEventListener("input", update);
+
+/* 初期表示 */
+update();
+</script>
+
+</body>
+</html>

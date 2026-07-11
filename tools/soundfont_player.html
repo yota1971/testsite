@@ -1,0 +1,293 @@
+```html
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Audio Analysis Tool (Complete)</title>
+<style>
+body { background:#0f1115; color:#e6e6e6; font-family:sans-serif; }
+.controls { margin:8px 0; }
+canvas { background:#000; display:block; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<div class="controls">
+<button id="start">Start</button>
+<button id="stop">Stop</button>
+
+A4:
+<input id="a4" type="range" min="430" max="450" value="440">
+<span id="a4val">440</span>
+
+Velocity:
+<input id="vel" type="range" min="0" max="1" step="0.01" value="0.8">
+<span id="velVal">0.8</span>
+
+Low:
+<input id="low" type="number" value="48" min="0" max="127">
+
+High:
+<input id="high" type="number" value="84" min="0" max="127">
+
+<label><input id="peakHold" type="checkbox" checked>Peak</label>
+</div>
+
+<div id="info">freq: -- Hz / -- dB</div>
+
+<canvas id="fft" width="900" height="260"></canvas>
+<canvas id="spec" width="900" height="260"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/soundfont-player/dist/soundfont-player.js"></script>
+
+<script>
+const ctx = new (window.AudioContext||window.webkitAudioContext)();
+let instrument;
+
+// ===== パラメータ =====
+const BPM=120;
+const noteDur=60/BPM/2;
+
+let velocity=0.8;
+
+// ===== UI =====
+a4.oninput=e=>a4val.textContent=e.target.value;
+vel.oninput=e=>{
+ velocity=+e.target.value;
+ velVal.textContent=velocity.toFixed(2);
+};
+
+// ===== MIDI =====
+function midiToNote(n){
+ const names=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+ return names[n%12]+(Math.floor(n/12)-1);
+}
+
+// ===== シーケンス =====
+function createSeq(){
+ let l=+low.value,h=+high.value;
+ if(l>h)[l,h]=[h,l];
+ let a=[],d=[];
+ for(let i=l;i<=h;i++)a.push(i);
+ for(let i=h-1;i>=l;i--)d.push(i);
+ return a.concat(d);
+}
+
+// ===== ノード =====
+const analyser=ctx.createAnalyser();
+const master=ctx.createGain();
+master.connect(analyser);
+analyser.connect(ctx.destination);
+
+analyser.fftSize=4096;
+analyser.smoothingTimeConstant=0.85;
+
+const bins=analyser.frequencyBinCount;
+const fftBuf=new Float32Array(bins);
+let peak=new Float32Array(bins).fill(-100);
+
+// ===== 状態 =====
+let state="STOPPED";
+let seq=[],seqIndex=0,nextTime=0;
+let timer=null;
+
+// アクティブノート
+let activeNotes=new Set();
+
+// HOLD（サステイン）用
+let heldNote=null;
+
+// ===== noteOn =====
+function noteOn(midi,time){
+ const node=instrument.play(midiToNote(midi),time,{
+  gain:velocity
+ });
+ node.connect(master);
+
+ activeNotes.add(node);
+ heldNote=node;
+
+ return node;
+}
+
+// ===== noteOff =====
+function noteOff(node){
+ try{node.stop()}catch{}
+ activeNotes.delete(node);
+}
+
+// ===== スケジューラ =====
+function scheduler(){
+ if(state!=="PLAYING")return;
+
+ while(nextTime<ctx.currentTime+0.1){
+
+  const midi=seq[seqIndex];
+  const node=noteOn(midi,nextTime);
+
+  // HOLDでなければノートオフ予約
+  if(state!=="HOLD"){
+   setTimeout(()=>noteOff(node),noteDur*1000);
+  }
+
+  nextTime+=noteDur;
+  seqIndex=(seqIndex+1)%seq.length;
+ }
+
+ timer=setTimeout(scheduler,25);
+}
+
+// ===== 制御 =====
+function startPlay(){
+ stopAll();
+
+ seq=createSeq();
+ seqIndex=0;
+ nextTime=ctx.currentTime;
+
+ state="PLAYING";
+ scheduler();
+}
+
+function hold(){
+ if(state!=="PLAYING")return;
+
+ state="HOLD";
+
+ clearTimeout(timer);
+
+ // 直前ノート以外停止
+ activeNotes.forEach(n=>{
+  if(n!==heldNote) noteOff(n);
+ });
+}
+
+function resume(){
+ if(state!=="HOLD")return;
+
+ state="PLAYING";
+
+ // ★暴発防止
+ nextTime=ctx.currentTime;
+
+ // HOLD音を通常制御に戻す
+ if(heldNote){
+  setTimeout(()=>noteOff(heldNote),noteDur*1000);
+  heldNote=null;
+ }
+
+ scheduler();
+}
+
+function stopAll(){
+ clearTimeout(timer);
+
+ activeNotes.forEach(n=>noteOff(n));
+ activeNotes.clear();
+
+ heldNote=null;
+
+ state="STOPPED";
+}
+
+// ===== FFT =====
+const c=document.getElementById("fft");
+const g=c.getContext("2d");
+
+function drawFFT(){
+ requestAnimationFrame(drawFFT);
+
+ analyser.getFloatFrequencyData(fftBuf);
+
+ if(peakHold.checked){
+  for(let i=0;i<bins;i++){
+   peak[i]=Math.max(peak[i]-0.2,fftBuf[i]);
+  }
+ }
+
+ g.fillStyle="#000";
+ g.fillRect(0,0,c.width,c.height);
+
+ for(let x=0;x<c.width;x++){
+  let f=20*Math.pow(20000/20,x/c.width);
+  let bin=f/(ctx.sampleRate/2)*bins;
+  let i=Math.floor(bin),frac=bin-i;
+  let db=(fftBuf[i]||-100)*(1-frac)+(fftBuf[i+1]||-100)*frac;
+
+  let y=(db+100)/100*c.height;
+
+  g.fillStyle="lime";
+  g.fillRect(x,c.height-y,1,y);
+
+  if(peakHold.checked){
+   let pdb=peak[i]||-100;
+   let py=(pdb+100)/100*c.height;
+   g.fillStyle="yellow";
+   g.fillRect(x,c.height-py,1,2);
+  }
+ }
+}
+
+// ===== スペクトログラム =====
+const cs=document.getElementById("spec");
+const gs=cs.getContext("2d");
+
+function drawSpec(){
+ requestAnimationFrame(drawSpec);
+
+ analyser.getFloatFrequencyData(fftBuf);
+
+ let img=gs.getImageData(1,0,cs.width-1,cs.height);
+ gs.putImageData(img,0,0);
+
+ for(let y=0;y<cs.height;y++){
+  let norm=1-y/cs.height;
+  let f=20*Math.pow(20000/20,norm);
+  let bin=f/(ctx.sampleRate/2)*bins;
+  let db=fftBuf[Math.floor(bin)]||-100;
+
+  let n=(db+100)/100;
+  gs.fillStyle=`rgb(${n*255},${n*n*255},80)`;
+  gs.fillRect(cs.width-1,y,1,1);
+ }
+}
+
+// ===== カーソル =====
+c.onmousemove=e=>{
+ let x=e.offsetX;
+ let f=20*Math.pow(20000/20,x/c.width);
+ let bin=f/(ctx.sampleRate/2)*bins;
+ let db=fftBuf[Math.floor(bin)]||-100;
+ info.textContent=`freq:${f.toFixed(1)}Hz / ${db.toFixed(1)}dB`;
+}
+
+// ===== UI =====
+start.onclick=async()=>{
+ if(ctx.state==="suspended")await ctx.resume();
+ if(!instrument)instrument=await Soundfont.instrument(ctx,"acoustic_grand_piano");
+ startPlay();
+};
+
+stop.onclick=stopAll;
+
+// Spaceキー
+document.addEventListener("keydown",async e=>{
+ if(e.code!=="Space")return;
+ e.preventDefault();
+
+ if(ctx.state==="suspended")await ctx.resume();
+ if(!instrument)instrument=await Soundfont.instrument(ctx,"acoustic_grand_piano");
+
+ if(state==="STOPPED")startPlay();
+ else if(state==="PLAYING")hold();
+ else if(state==="HOLD")resume();
+});
+
+// 起動
+drawFFT();
+drawSpec();
+</script>
+
+</body>
+</html>
+```

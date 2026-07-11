@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音の三要素 - インタラクティブ教材</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #0f172a;
+            --secondary: #1e293b;
+            --accent: #0ea5e9;
+            --accent-light: #38bdf8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --neutral-light: #e2e8f0;
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            background: linear-gradient(135deg, var(--primary) 0%, #0f0f23 100%);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 2px solid var(--accent);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: normal;
+            letter-spacing: 0.15em;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: var(--accent-light);
+            font-weight: normal;
+        }
+
+        .section {
+            background: var(--secondary);
+            border: 1px solid rgba(14, 165, 233, 0.2);
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .section:hover {
+            border-color: rgba(14, 165, 233, 0.5);
+            box-shadow: 0 0 20px rgba(14, 165, 233, 0.1);
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+            color: var(--accent-light);
+            font-weight: normal;
+            position: relative;
+            padding-bottom: 1rem;
+        }
+
+        h2::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 60px;
+            height: 2px;
+            background: var(--accent);
+        }
+
+        h3 {
+            font-size: 1.2rem;
+            margin: 1.5rem 0 1rem 0;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .description {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            font-size: 1rem;
+            line-height: 1.8;
+        }
+
+        .control-group {
+            background: rgba(15, 23, 42, 0.5);
+            border-left: 3px solid var(--accent);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 4px;
+        }
+
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.8rem;
+            font-size: 0.95rem;
+        }
+
+        .control-value {
+            color: var(--accent-light);
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: linear-gradient(to right, var(--accent), var(--success));
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent-light);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(14, 165, 233, 0.5);
+            transition: all 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 20px rgba(14, 165, 233, 0.8);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent-light);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px rgba(14, 165, 233, 0.5);
+            transition: all 0.2s;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 20px rgba(14, 165, 233, 0.8);
+        }
+
+        .visualization {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .visualization::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                repeating-linear-gradient(
+                    0deg,
+                    rgba(14, 165, 233, 0.03) 0px,
+                    rgba(14, 165, 233, 0.03) 1px,
+                    transparent 1px,
+                    transparent 2px
+                );
+            pointer-events: none;
+        }
+
+        .canvas-container {
+            position: relative;
+            z-index: 1;
+            height: 300px;
+        }
+
+        .info-box {
+            background: rgba(16, 185, 129, 0.1);
+            border-left: 3px solid var(--success);
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 4px;
+            color: var(--text-secondary);
+        }
+
+        .formula {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--accent);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin: 1.5rem 0;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: var(--accent);
+            color: var(--primary);
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: var(--accent-light);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(14, 165, 233, 0.3);
+        }
+
+        button.secondary {
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+        }
+
+        button.secondary:hover {
+            background: rgba(14, 165, 233, 0.1);
+        }
+
+        .waveform-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .waveform-btn {
+            padding: 1rem;
+            text-align: center;
+            background: rgba(14, 165, 233, 0.1);
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--text-secondary);
+        }
+
+        .waveform-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--primary);
+        }
+
+        .waveform-btn:hover {
+            border-color: var(--accent);
+        }
+
+        .spectrum-legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(14, 165, 233, 0.2);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .section {
+                padding: 1.5rem;
+            }
+
+            .control-group {
+                padding: 1rem;
+            }
+        }
+
+        .animation-enter {
+            animation: slideInUp 0.6s ease-out;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .playback-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin: 1.5rem 0;
+            flex-wrap: wrap;
+        }
+
+        .play-btn {
+            background: var(--success);
+            font-size: 1rem;
+            padding: 1rem 2rem;
+            min-width: 120px;
+        }
+
+        .play-btn:hover {
+            background: #34d399;
+        }
+
+        .play-btn.playing {
+            background: var(--danger);
+        }
+
+        .play-btn.playing:hover {
+            background: #f87171;
+        }
+
+        .volume-control {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .audio-status {
+            padding: 0.5rem 1rem;
+            background: rgba(14, 165, 233, 0.1);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-family: 'Courier New', monospace;
+        }
+
+        .audio-status.active {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>音の三要素</h1>
+            <p class="subtitle">周波数・音量・音色のメカニズムを学ぶ</p>
+        </header>
+
+        <!-- セクション1: 周波数 -->
+        <div class="section animation-enter">
+            <h2>1. 周波数（Frequency）</h2>
+            <p class="description">
+                周波数は1秒間に波が振動する回数を示します。単位はHz（ヘルツ）です。
+                周波数が高いほど高い音になり、低いほど低い音になります。
+            </p>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>周波数を調整してください</span>
+                    <span class="control-value" id="freqDisplay">440 Hz</span>
+                </div>
+                <input type="range" id="frequencySlider" min="20" max="2000" value="440" step="1">
+            </div>
+
+            <div class="playback-controls">
+                <button class="play-btn" id="playFreqBtn">▶ 再生</button>
+                <div class="volume-control">
+                    <div class="control-label">
+                        <span>出力音量</span>
+                        <span class="control-value" id="freqVolDisplay">80%</span>
+                    </div>
+                    <input type="range" id="freqVolume" min="0" max="100" value="80" step="1">
+                </div>
+                <div class="audio-status" id="freqStatus">スタンバイ</div>
+            </div>
+
+            <div class="info-box">
+                <strong>基準周波数（A4）:</strong> 440 Hz は国際標準の基準音です。
+                ピアノの中央のラ（A）の音がこの周波数です。
+            </div>
+
+            <div class="visualization">
+                <div class="canvas-container">
+                    <canvas id="waveformChart"></canvas>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <strong>音域の参考値:</strong><br>
+                • 低音域: 20 Hz ～ 250 Hz<br>
+                • 中音域: 250 Hz ～ 4 kHz<br>
+                • 高音域: 4 kHz ～ 20 kHz
+            </div>
+        </div>
+
+        <!-- セクション2: 音量 -->
+        <div class="section animation-enter">
+            <h2>2. 音量（Amplitude）</h2>
+            <p class="description">
+                音量は振幅（波の上下の大きさ）で決まります。単位はdB（デシベル）です。
+                0 dB を基準として、-∞ dB （無音）から計測されます。
+            </p>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>振幅（リニア）を調整</span>
+                    <span class="control-value" id="ampDisplay">0.7</span>
+                </div>
+                <input type="range" id="amplitudeSlider" min="0" max="1" value="0.7" step="0.01">
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>音圧レベル（dB）</span>
+                    <span class="control-value" id="dbDisplay">-3.1 dB</span>
+                </div>
+            </div>
+
+            <div class="playback-controls">
+                <button class="play-btn" id="playAmpBtn">▶ 再生</button>
+                <div class="volume-control">
+                    <div class="control-label">
+                        <span>スピーカー出力</span>
+                        <span class="control-value" id="ampVolDisplay">80%</span>
+                    </div>
+                    <input type="range" id="ampVolume" min="0" max="100" value="80" step="1">
+                </div>
+                <div class="audio-status" id="ampStatus">スタンバイ</div>
+            </div>
+
+            <div class="formula">
+                <strong>デシベルの計算式:</strong><br>
+                dB = 20 × log₁₀(Amplitude / 1.0)<br>
+                <br>
+                例: Amplitude = 0.7 の場合<br>
+                dB = 20 × log₁₀(0.7) ≈ -3.1 dB
+            </div>
+
+            <div class="visualization">
+                <div class="canvas-container">
+                    <canvas id="amplitudeChart"></canvas>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <strong>実世界の音圧レベル参考値:</strong><br>
+                • 無音: -∞ dB<br>
+                • 囁き声: 30 dB<br>
+                • 通常会話: 60 dB<br>
+                • 交通騒音: 80 dB<br>
+                • ロックコンサート: 120 dB<br>
+                • 痛みを感じる閾値: 130 dB
+            </div>
+        </div>
+
+        <!-- セクション3: 音色 -->
+        <div class="section animation-enter">
+            <h2>3. 音色（Timbre）</h2>
+            <p class="description">
+                音色は同じ周波数の音でも、楽器によって異なる聴こえ方です。
+                これは基本周波数に加えて、倍音（ハーモニクス）がどのように含まれているかで決まります。
+            </p>
+
+            <h3>波形を選択してください</h3>
+            <div class="waveform-selector">
+                <button class="waveform-btn active" data-waveform="sine">
+                    正弦波<br>(Sine)
+                </button>
+                <button class="waveform-btn" data-waveform="square">
+                    矩形波<br>(Square)
+                </button>
+                <button class="waveform-btn" data-waveform="sawtooth">
+                    のこぎり波<br>(Sawtooth)
+                </button>
+                <button class="waveform-btn" data-waveform="triangle">
+                    三角波<br>(Triangle)
+                </button>
+            </div>
+
+            <div class="playback-controls">
+                <button class="play-btn" id="playTimbreBtn">▶ 再生</button>
+                <div class="volume-control">
+                    <div class="control-label">
+                        <span>スピーカー出力</span>
+                        <span class="control-value" id="timbreVolDisplay">80%</span>
+                    </div>
+                    <input type="range" id="timbreVolume" min="0" max="100" value="80" step="1">
+                </div>
+                <div class="audio-status" id="timbreStatus">スタンバイ</div>
+            </div>
+
+            <div class="visualization">
+                <div class="canvas-container">
+                    <canvas id="timbreChart"></canvas>
+                </div>
+            </div>
+
+            <h3>周波数スペクトラム（倍音構成）</h3>
+            <div class="spectrum-legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #0ea5e9;"></div>
+                    <span>基本周波数（1倍音）</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #10b981;"></div>
+                    <span>倍音成分</span>
+                </div>
+            </div>
+
+            <div class="visualization">
+                <div class="canvas-container">
+                    <canvas id="spectrumChart"></canvas>
+                </div>
+            </div>
+
+            <div class="formula">
+                <strong>各波形の倍音構成:</strong><br><br>
+                <strong>正弦波 (Sine):</strong><br>
+                基本周波数のみ（倍音なし）→ 最も単純な音<br><br>
+                
+                <strong>矩形波 (Square):</strong><br>
+                基本 + 3倍 + 5倍 + 7倍... (奇数倍音のみ)<br>
+                強い高音成分 → 明るく硬い音<br><br>
+                
+                <strong>のこぎり波 (Sawtooth):</strong><br>
+                基本 + 2倍 + 3倍 + 4倍... (すべての倍音)<br>
+                最も多くの倍音 → 豊かで複雑な音<br><br>
+                
+                <strong>三角波 (Triangle):</strong><br>
+                基本 + 3倍 + 5倍... (奇数倍音のみ、矩形波より弱い)
+            </div>
+
+            <div class="info-box">
+                <strong>実楽器との関係:</strong><br>
+                実際の楽器の音は複数の周波数成分を持っています。
+                ピアノ、ギター、トランペットなど、それぞれの倍音構成が
+                その楽器固有の「音色」を作り出しています。
+            </div>
+        </div>
+
+        <footer>
+            <p>このインタラクティブ教材では、Web Audio API を使用してリアルタイムに波形と周波数特性を表示しています。</p>
+            <p>© 2026 Audio Education Material</p>
+        </footer>
+    </div>
+
+    <script>
+        // Web Audio API初期化
+        let audioContext = null;
+        let oscillators = [];
+        let gains = [];
+
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            return audioContext;
+        }
+
+        // グローバル変数
+        let waveformChartInstance;
+        let amplitudeChartInstance;
+        let timbreChartInstance;
+        let spectrumChartInstance;
+        let currentWaveform = 'sine';
+
+        // 音声生成・停止関数
+        function playTone(frequency, amplitude, waveform, duration = 2) {
+            const ctx = initAudioContext();
+            
+            // 既存の音声を停止
+            stopAllTones();
+
+            const now = ctx.currentTime;
+            const endTime = now + duration;
+
+            // 各波形に対応した音声ノードを生成
+            if (waveform === 'sine') {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.value = frequency;
+                gain.gain.setValueAtTime(amplitude, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, endTime);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.start(now);
+                osc.stop(endTime);
+                
+                oscillators.push(osc);
+                gains.push(gain);
+            } else if (waveform === 'square') {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'square';
+                osc.frequency.value = frequency;
+                gain.gain.setValueAtTime(amplitude, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, endTime);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.start(now);
+                osc.stop(endTime);
+                
+                oscillators.push(osc);
+                gains.push(gain);
+            } else if (waveform === 'sawtooth') {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'sawtooth';
+                osc.frequency.value = frequency;
+                gain.gain.setValueAtTime(amplitude, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, endTime);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.start(now);
+                osc.stop(endTime);
+                
+                oscillators.push(osc);
+                gains.push(gain);
+            } else if (waveform === 'triangle') {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'triangle';
+                osc.frequency.value = frequency;
+                gain.gain.setValueAtTime(amplitude, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, endTime);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.start(now);
+                osc.stop(endTime);
+                
+                oscillators.push(osc);
+                gains.push(gain);
+            }
+        }
+
+        function stopAllTones() {
+            const ctx = initAudioContext();
+            oscillators.forEach(osc => {
+                try {
+                    osc.stop();
+                } catch (e) {}
+            });
+            oscillators = [];
+            gains = [];
+        }
+
+        // ボタンイベントハンドラー
+        document.getElementById('playFreqBtn').addEventListener('click', function() {
+            const frequency = parseFloat(document.getElementById('frequencySlider').value);
+            const masterVolume = parseFloat(document.getElementById('freqVolume').value) / 100;
+            const amplitude = 0.7 * masterVolume;
+            
+            if (this.classList.contains('playing')) {
+                stopAllTones();
+                this.classList.remove('playing');
+                this.textContent = '▶ 再生';
+                document.getElementById('freqStatus').classList.remove('active');
+                document.getElementById('freqStatus').textContent = 'スタンバイ';
+            } else {
+                stopAllTones();  // 念のため既存のトーンを停止
+                playTone(frequency, amplitude, 'sine', 2);
+                this.classList.add('playing');
+                this.textContent = '⏹ 停止';
+                document.getElementById('freqStatus').classList.add('active');
+                document.getElementById('freqStatus').textContent = `再生中: ${frequency} Hz`;
+                setTimeout(() => {
+                    this.classList.remove('playing');
+                    this.textContent = '▶ 再生';
+                    document.getElementById('freqStatus').classList.remove('active');
+                    document.getElementById('freqStatus').textContent = 'スタンバイ';
+                }, 2000);
+            }
+        });
+
+        document.getElementById('playAmpBtn').addEventListener('click', function() {
+            const frequency = 440;
+            const amplitude = parseFloat(document.getElementById('amplitudeSlider').value);
+            const masterVolume = parseFloat(document.getElementById('ampVolume').value) / 100;
+            
+            if (this.classList.contains('playing')) {
+                stopAllTones();
+                this.classList.remove('playing');
+                this.textContent = '▶ 再生';
+                document.getElementById('ampStatus').classList.remove('active');
+                document.getElementById('ampStatus').textContent = 'スタンバイ';
+            } else {
+                stopAllTones();  // 念のため既存のトーンを停止
+                playTone(frequency, amplitude * masterVolume, 'sine', 2);
+                this.classList.add('playing');
+                this.textContent = '⏹ 停止';
+                document.getElementById('ampStatus').classList.add('active');
+                document.getElementById('ampStatus').textContent = `再生中: ${(20 * Math.log10(amplitude)).toFixed(1)} dB`;
+                setTimeout(() => {
+                    this.classList.remove('playing');
+                    this.textContent = '▶ 再生';
+                    document.getElementById('ampStatus').classList.remove('active');
+                    document.getElementById('ampStatus').textContent = 'スタンバイ';
+                }, 2000);
+            }
+        });
+
+        document.getElementById('playTimbreBtn').addEventListener('click', function() {
+            const frequency = parseFloat(document.getElementById('frequencySlider').value);
+            const masterVolume = parseFloat(document.getElementById('timbreVolume').value) / 100;
+            const amplitude = 0.7 * masterVolume;
+            const waveformToPlay = currentWaveform;  // 現在の波形を明示的に保存
+            
+            console.log('Play button clicked. Waveform:', waveformToPlay, 'Frequency:', frequency);  // デバッグログ
+            
+            if (this.classList.contains('playing')) {
+                stopAllTones();
+                this.classList.remove('playing');
+                this.textContent = '▶ 再生';
+                document.getElementById('timbreStatus').classList.remove('active');
+                document.getElementById('timbreStatus').textContent = 'スタンバイ';
+            } else {
+                stopAllTones();  // 念のため既存のトーンを停止
+                playTone(frequency, amplitude, waveformToPlay, 2);
+                this.classList.add('playing');
+                this.textContent = '⏹ 停止';
+                document.getElementById('timbreStatus').classList.add('active');
+                document.getElementById('timbreStatus').textContent = `再生中: ${waveformToPlay}`;
+                setTimeout(() => {
+                    this.classList.remove('playing');
+                    this.textContent = '▶ 再生';
+                    document.getElementById('timbreStatus').classList.remove('active');
+                    document.getElementById('timbreStatus').textContent = 'スタンバイ';
+                }, 2000);
+            }
+        });
+
+        // 周波数スライダーのイベントリスナー
+        document.getElementById('frequencySlider').addEventListener('input', (e) => {
+            const freq = parseFloat(e.target.value);
+            document.getElementById('freqDisplay').textContent = freq + ' Hz';
+            updateWaveformChart(freq);
+            updateTimbreChart(freq);
+            updateSpectrumChart(freq);
+        });
+
+        // 振幅スライダーのイベントリスナー
+        document.getElementById('amplitudeSlider').addEventListener('input', (e) => {
+            const amp = parseFloat(e.target.value);
+            document.getElementById('ampDisplay').textContent = amp.toFixed(2);
+            
+            // dBの計算
+            const db = amp > 0 ? 20 * Math.log10(amp) : -Infinity;
+            document.getElementById('dbDisplay').textContent = db === -Infinity ? '-∞ dB' : db.toFixed(1) + ' dB';
+            
+            updateAmplitudeChart(amp);
+            updateWaveformChart(parseFloat(document.getElementById('frequencySlider').value), amp);
+            updateTimbreChart(parseFloat(document.getElementById('frequencySlider').value), amp);
+        });
+
+        // 音量スライダーのイベントリスナー
+        document.getElementById('freqVolume').addEventListener('input', (e) => {
+            const vol = parseFloat(e.target.value);
+            document.getElementById('freqVolDisplay').textContent = vol + '%';
+        });
+
+        document.getElementById('ampVolume').addEventListener('input', (e) => {
+            const vol = parseFloat(e.target.value);
+            document.getElementById('ampVolDisplay').textContent = vol + '%';
+        });
+
+        document.getElementById('timbreVolume').addEventListener('input', (e) => {
+            const vol = parseFloat(e.target.value);
+            document.getElementById('timbreVolDisplay').textContent = vol + '%';
+        });
+
+        // 波形選択ボタンのイベントリスナー
+        document.querySelectorAll('.waveform-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.waveform-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentWaveform = btn.dataset.waveform;
+                console.log('Wave changed to:', currentWaveform);  // デバッグログ
+                
+                const freq = parseFloat(document.getElementById('frequencySlider').value);
+                const amp = parseFloat(document.getElementById('amplitudeSlider').value);
+                updateTimbreChart(freq, amp);
+                updateSpectrumChart(freq);
+            });
+        });
+
+        // 波形データ生成関数
+        function generateWaveformData(type, frequency, amplitude = 1, samples = 400) {
+            const data = [];
+            const sampleRate = frequency * 10; // 周波数の10倍をサンプリングレート
+            
+            for (let i = 0; i < samples; i++) {
+                const t = i / sampleRate;
+                const phase = 2 * Math.PI * frequency * t;
+                
+                let value;
+                switch(type) {
+                    case 'sine':
+                        value = amplitude * Math.sin(phase);
+                        break;
+                    case 'square':
+                        value = amplitude * (Math.sin(phase) > 0 ? 1 : -1);
+                        break;
+                    case 'sawtooth':
+                        value = amplitude * (2 * (t * frequency - Math.floor(t * frequency + 0.5)));
+                        break;
+                    case 'triangle':
+                        const period = 1 / frequency;
+                        const phaseInPeriod = (t % period) / period;
+                        value = amplitude * (phaseInPeriod < 0.5 
+                            ? 4 * phaseInPeriod - 1 
+                            : 3 - 4 * phaseInPeriod);
+                        break;
+                    default:
+                        value = 0;
+                }
+                
+                data.push(value);
+            }
+            return data;
+        }
+
+        // スペクトラムデータ生成関数
+        function generateSpectrumData(type, frequency) {
+            const harmonics = [];
+            const maxHarmonics = 8;
+            
+            for (let i = 1; i <= maxHarmonics; i++) {
+                let amplitude = 0;
+                
+                switch(type) {
+                    case 'sine':
+                        amplitude = i === 1 ? 1 : 0;
+                        break;
+                    case 'square':
+                        amplitude = i % 2 === 1 ? 1 / i : 0;
+                        break;
+                    case 'sawtooth':
+                        amplitude = 1 / i;
+                        break;
+                    case 'triangle':
+                        amplitude = i % 2 === 1 ? 1 / (i * i) : 0;
+                        break;
+                }
+                
+                harmonics.push({
+                    frequency: frequency * i,
+                    amplitude: amplitude * 100,
+                    label: i === 1 ? '基本' : i + '倍'
+                });
+            }
+            
+            return harmonics;
+        }
+
+        // グラフ初期化と更新関数
+        function initCharts() {
+            const ctx1 = document.getElementById('waveformChart').getContext('2d');
+            const ctx2 = document.getElementById('amplitudeChart').getContext('2d');
+            const ctx3 = document.getElementById('timbreChart').getContext('2d');
+            const ctx4 = document.getElementById('spectrumChart').getContext('2d');
+
+            const chartConfig = {
+                type: 'line',
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: -1.2,
+                            max: 1.2,
+                            grid: {
+                                color: 'rgba(14, 165, 233, 0.1)'
+                            },
+                            ticks: {
+                                color: 'rgba(241, 245, 249, 0.7)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(14, 165, 233, 0.05)'
+                            },
+                            ticks: {
+                                color: 'rgba(241, 245, 249, 0.7)'
+                            }
+                        }
+                    }
+                }
+            };
+
+            waveformChartInstance = new Chart(ctx1, {
+                ...chartConfig,
+                data: {
+                    labels: Array.from({length: 400}, (_, i) => i),
+                    datasets: [{
+                        label: '波形',
+                        data: generateWaveformData('sine', 440),
+                        borderColor: '#0ea5e9',
+                        backgroundColor: 'rgba(14, 165, 233, 0.05)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        pointRadius: 0,
+                        fill: true
+                    }]
+                }
+            });
+
+            amplitudeChartInstance = new Chart(ctx2, {
+                ...chartConfig,
+                data: {
+                    labels: Array.from({length: 400}, (_, i) => i),
+                    datasets: [{
+                        label: '振幅',
+                        data: generateWaveformData('sine', 440, 0.7),
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        pointRadius: 0,
+                        fill: true
+                    }]
+                }
+            });
+
+            timbreChartInstance = new Chart(ctx3, {
+                ...chartConfig,
+                data: {
+                    labels: Array.from({length: 400}, (_, i) => i),
+                    datasets: [{
+                        label: '波形',
+                        data: generateWaveformData('sine', 440, 0.7),
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        pointRadius: 0,
+                        fill: true
+                    }]
+                }
+            });
+
+            // スペクトラムグラフ
+            const spectrum = generateSpectrumData('sine', 440);
+            spectrumChartInstance = new Chart(ctx4, {
+                type: 'bar',
+                data: {
+                    labels: spectrum.map(h => h.label),
+                    datasets: [{
+                        label: '倍音成分',
+                        data: spectrum.map(h => h.amplitude),
+                        backgroundColor: [
+                            '#0ea5e9',
+                            '#10b981',
+                            '#10b981',
+                            '#10b981',
+                            '#10b981',
+                            '#10b981',
+                            '#10b981',
+                            '#10b981'
+                        ],
+                        borderColor: 'rgba(14, 165, 233, 0.5)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 100,
+                            grid: {
+                                color: 'rgba(14, 165, 233, 0.1)'
+                            },
+                            ticks: {
+                                color: 'rgba(241, 245, 249, 0.7)'
+                            },
+                            title: {
+                                display: true,
+                                text: '相対振幅 (%)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: 'rgba(241, 245, 249, 0.7)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateWaveformChart(frequency, amplitude = 0.7) {
+            const data = generateWaveformData('sine', frequency, amplitude);
+            waveformChartInstance.data.datasets[0].data = data;
+            waveformChartInstance.update('none');
+        }
+
+        function updateAmplitudeChart(amplitude) {
+            const data = generateWaveformData('sine', 440, amplitude);
+            amplitudeChartInstance.data.datasets[0].data = data;
+            amplitudeChartInstance.update('none');
+        }
+
+        function updateTimbreChart(frequency, amplitude = 0.7) {
+            const data = generateWaveformData(currentWaveform, frequency, amplitude);
+            timbreChartInstance.data.datasets[0].data = data;
+            
+            // 波形に応じて色を変更
+            const colors = {
+                sine: '#0ea5e9',
+                square: '#ef4444',
+                sawtooth: '#8b5cf6',
+                triangle: '#f59e0b'
+            };
+            
+            timbreChartInstance.data.datasets[0].borderColor = colors[currentWaveform];
+            timbreChartInstance.data.datasets[0].backgroundColor = colors[currentWaveform] + '0f';
+            timbreChartInstance.update('none');
+        }
+
+        function updateSpectrumChart(frequency) {
+            const spectrum = generateSpectrumData(currentWaveform, frequency);
+            spectrumChartInstance.data.labels = spectrum.map(h => h.label);
+            spectrumChartInstance.data.datasets[0].data = spectrum.map(h => h.amplitude);
+            spectrumChartInstance.update('none');
+        }
+
+        // ページロード時に初期化
+        window.addEventListener('load', initCharts);
+    </script>
+</body>
+</html>

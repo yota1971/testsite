@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>AD変換教材：標本化 → エイリアス（デモ）</title>
+  <style>
+    :root{
+      --bg:#0b0f17; --panel:#101827; --panel2:#0f172a;
+      --text:#e5e7eb; --muted:#9ca3af; --grid:#243044;
+      --a:#60a5fa; --b:#34d399; --c:#f59e0b; --danger:#fb7185;
+      --line:#334155;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    body{ margin:0; font-family:var(--sans); background:var(--bg); color:var(--text); }
+    header{ padding:16px 18px; border-bottom:1px solid #111827; background:linear-gradient(180deg, #0b0f17 0%, #0b0f17 55%, rgba(0,0,0,0) 100%); position:sticky; top:0; z-index:10;}
+    h1{ margin:0 0 6px; font-size:18px; font-weight:700;}
+    .sub{ color:var(--muted); font-size:12px; line-height:1.4;}
+    .wrap{ display:grid; grid-template-columns: 420px 1fr; gap:14px; padding:14px; }
+    @media (max-width: 980px){ .wrap{ grid-template-columns:1fr; } }
+    .card{ background:rgba(16,24,39,.85); border:1px solid #0b1220; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.25); overflow:hidden;}
+    .card h2{ margin:0; padding:12px 14px; font-size:14px; border-bottom:1px solid #0b1220; color:#dbeafe; background:rgba(15,23,42,.65); }
+    .card .content{ padding:14px; }
+    .row{ display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; margin:10px 0; }
+    label{ font-size:12px; color:#d1d5db; }
+    .value{ font-family:var(--mono); font-size:12px; color:#e5e7eb; opacity:.95;}
+    input[type="range"]{ width:100%; }
+    select, button{
+      background:#0b1220; color:var(--text); border:1px solid #1f2a44;
+      border-radius:12px; padding:10px 12px; font-size:13px;
+    }
+    button{ cursor:pointer; transition:transform .05s ease; }
+    button:active{ transform:scale(.98); }
+    .btnRow{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+    .pill{ display:inline-flex; gap:8px; align-items:center; padding:7px 10px; border:1px solid #1f2a44; border-radius:999px; background:#0b1220; font-size:12px; color:#d1d5db;}
+    .pill input{ transform:translateY(1px); }
+    .note{ font-size:12px; color:var(--muted); line-height:1.55; margin-top:10px;}
+    .status{ font-family:var(--mono); font-size:12px; color:#c7d2fe; background:#0b1220; border:1px solid #1f2a44; border-radius:12px; padding:10px; line-height:1.45;}
+    canvas{ width:100%; height:320px; display:block; background:rgba(8,12,20,.9); border-top:1px solid #0b1220;}
+    .plotWrap{ display:grid; grid-template-rows: auto auto; gap:14px; padding:14px; }
+    .legend{ display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:#cbd5e1; padding:10px 12px; border-bottom:1px solid #0b1220; background:rgba(15,23,42,.65); }
+    .sw{ width:10px; height:10px; border-radius:3px; display:inline-block; margin-right:6px;}
+    .kpi{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;}
+    .kpi .box{ background:#0b1220; border:1px solid #1f2a44; border-radius:14px; padding:10px;}
+    .kpi .box .t{ font-size:11px; color:var(--muted); }
+    .kpi .box .v{ font-family:var(--mono); font-size:14px; color:#e5e7eb; margin-top:4px;}
+    .warn{ color:var(--danger); }
+  </style>
+</head>
+<body>
+<header>
+  <h1>AD変換教材（A）：標本化 → エイリアス（ブラウザデモ）</h1>
+  <div class="sub">
+    連続波（高密度）→ 低いサンプリング周波数で標本化 → ZOH再構成 → スペクトラム比較（FFT）で折り返しを可視化・可聴化します。
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="card">
+    <h2>Controls</h2>
+    <div class="content">
+      <div class="row">
+        <label for="freq">Signal frequency f (Hz) <span class="sub">（対数）</span></label>
+        <div class="value" id="freqVal">1000</div>
+      </div>
+      <input id="freq" type="range" min="0" max="1" step="0.0005" value="0.65" />
+
+      <div class="row">
+        <label for="fsSim">Sampling frequency (Sim) Fs (Hz) <span class="sub">（ここを下げるとエイリアス）</span></label>
+        <div class="value" id="fsSimVal">8000</div>
+      </div>
+      <input id="fsSim" type="range" min="0" max="1" step="0.0005" value="0.45" />
+
+      <div class="row">
+        <label for="srOut">Audio output sample rate (Hz)</label>
+        <div class="value" id="srOutVal">48000</div>
+      </div>
+      <select id="srOut">
+        <option value="44100">44100</option>
+        <option value="48000" selected>48000</option>
+        <option value="88200">88200</option>
+        <option value="96000">96000</option>
+      </select>
+
+      <div class="btnRow">
+        <button id="playBtn">▶ Play</button>
+        <button id="stopBtn" disabled>■ Stop</button>
+        <button id="regenBtn">↻ Regenerate buffer</button>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+        <label class="pill"><input type="checkbox" id="showRecon" checked> Show reconstructed (ZOH)</label>
+        <label class="pill"><input type="checkbox" id="showPoints" checked> Show sample points</label>
+        <label class="pill"><input type="checkbox" id="useLPF"> Anti-alias filter (simple LPF)</label>
+      </div>
+
+      <div class="kpi">
+        <div class="box">
+          <div class="t">Nyquist (Sim) = Fs/2</div>
+          <div class="v" id="nyqVal">4000 Hz</div>
+        </div>
+        <div class="box">
+          <div class="t">Alias frequency (theory)</div>
+          <div class="v" id="aliasVal">—</div>
+        </div>
+      </div>
+
+      <div class="status" id="status" style="margin-top:10px;">Status: idle</div>
+      <div class="note">
+        <b>見どころ：</b> f が Nyquist（Fs/2）を超えると、スペクトラムのピークが低周波へ「折り返し」ます。<br/>
+        再生音も見かけの周波数に引っ張られます（= エイリアス）。<br/>
+        ※Anti-alias filter は「本来A/D前に入るLPF」を超簡易に模したものです。
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="legend">
+      <span><span class="sw" style="background:var(--a)"></span>Analog (dense)</span>
+      <span><span class="sw" style="background:var(--c)"></span>Sample points (Fs_sim)</span>
+      <span><span class="sw" style="background:var(--b)"></span>Reconstructed (ZOH)</span>
+      <span style="margin-left:auto; color:#94a3b8;">Crosshair: mouse move</span>
+    </div>
+    <div class="plotWrap">
+      <div class="card" style="border-radius:16px;">
+        <h2>Time-domain waveform</h2>
+        <canvas id="wave"></canvas>
+      </div>
+      <div class="card" style="border-radius:16px;">
+        <h2>Spectrum (FFT)</h2>
+        <canvas id="spec"></canvas>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // ---------- Utils ----------
+  const clamp = (x,a,b)=>Math.min(b,Math.max(a,x));
+  const lerp  = (a,b,t)=>a+(b-a)*t;
+
+  // Log slider mapping: t in [0,1] => [min,max] logarithmically
+  function logMap(t, min, max){
+    const logMin = Math.log(min), logMax = Math.log(max);
+    return Math.exp(lerp(logMin, logMax, t));
+  }
+
+  // Alias frequency (folding) for a single tone: f_alias = |f - round(f/Fs)*Fs|
+  function aliasFreq(f, Fs){
+    if (Fs <= 0) return NaN;
+    const n = Math.round(f / Fs);
+    return Math.abs(f - n * Fs);
+  }
+
+  // Simple 1-pole LPF (very rough "anti-alias" prefilter for teaching)
+  function onePoleLPF(x, yPrev, a){
+    // y[n]= (1-a)*x + a*y[n-1];  a close to 1 => lower cutoff
+    return (1 - a)*x + a*yPrev;
+  }
+
+  // Hann window
+  function hann(n, N){
+    return 0.5 * (1 - Math.cos(2*Math.PI*n/(N-1)));
+  }
+
+  // ---------- Minimal FFT (radix-2, in-place) ----------
+  function fftRadix2(re, im){
+    const N = re.length;
+    // bit reverse
+    let j=0;
+    for(let i=0;i<N;i++){
+      if(i<j){
+        [re[i],re[j]]=[re[j],re[i]];
+        [im[i],im[j]]=[im[j],im[i]];
+      }
+      let m = N>>1;
+      while(m>=1 && j>=m){ j-=m; m>>=1; }
+      j += m;
+    }
+    for(let len=2; len<=N; len<<=1){
+      const ang = -2*Math.PI/len;
+      const wlenRe = Math.cos(ang);
+      const wlenIm = Math.sin(ang);
+      for(let i=0; i<N; i+=len){
+        let wRe=1, wIm=0;
+        for(let k=0; k<len/2; k++){
+          const uRe = re[i+k], uIm = im[i+k];
+          const vRe = re[i+k+len/2]*wRe - im[i+k+len/2]*wIm;
+          const vIm = re[i+k+len/2]*wIm + im[i+k+len/2]*wRe;
+          re[i+k] = uRe + vRe;
+          im[i+k] = uIm + vIm;
+          re[i+k+len/2] = uRe - vRe;
+          im[i+k+len/2] = uIm - vIm;
+          const nextWRe = wRe*wlenRe - wIm*wlenIm;
+          const nextWIm = wRe*wlenIm + wIm*wlenRe;
+          wRe = nextWRe; wIm = nextWIm;
+        }
+      }
+    }
+  }
+
+  function nextPow2(n){
+    let p=1; while(p<n) p<<=1; return p;
+  }
+
+  function computeSpectrum(signal, sr, maxHz=20000){
+    const N0 = signal.length;
+    const N = nextPow2(Math.min(8192, N0)); // cap for speed
+    const re = new Float32Array(N);
+    const im = new Float32Array(N);
+    // window + copy
+    const start = Math.max(0, Math.floor((N0 - N)/2));
+    for(let i=0;i<N;i++){
+      const s = signal[start+i] ?? 0;
+      re[i] = s * hann(i, N);
+      im[i] = 0;
+    }
+    fftRadix2(re, im);
+    const half = N>>1;
+    const freqs = [];
+    const mags  = [];
+    const df = sr / N;
+    const maxBin = Math.min(half-1, Math.floor(maxHz / df));
+    for(let k=0;k<=maxBin;k++){
+      const mag = Math.sqrt(re[k]*re[k] + im[k]*im[k]) / (N/2);
+      freqs.push(k*df);
+      mags.push(mag);
+    }
+    return {freqs, mags};
+  }
+
+  // ---------- DOM ----------
+  const el = id => document.getElementById(id);
+  const freq = el('freq'), fsSim = el('fsSim'), srOut = el('srOut');
+  const freqVal = el('freqVal'), fsSimVal=el('fsSimVal'), srOutVal=el('srOutVal');
+  const nyqVal = el('nyqVal'), aliasVal = el('aliasVal');
+  const status = el('status');
+  const playBtn = el('playBtn'), stopBtn = el('stopBtn'), regenBtn = el('regenBtn');
+  const showRecon = el('showRecon'), showPoints = el('showPoints'), useLPF = el('useLPF');
+  const waveC = el('wave'), specC = el('spec');
+
+  // Canvas setup
+  function setupCanvas(canvas){
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return ctx;
+  }
+
+  let waveCtx, specCtx;
+  function resizeAll(){
+    waveCtx = setupCanvas(waveC);
+    specCtx = setupCanvas(specC);
+    renderAll();
+  }
+  window.addEventListener('resize', resizeAll);
+
+  // Crosshair
+  const cross = {x:null, y:null, on:false};
+  function attachCrosshair(canvas){
+    canvas.addEventListener('mousemove', (e)=>{
+      const r = canvas.getBoundingClientRect();
+      cross.x = e.clientX - r.left;
+      cross.y = e.clientY - r.top;
+      cross.on = true;
+      renderAll();
+    });
+    canvas.addEventListener('mouseleave', ()=>{
+      cross.on = false;
+      renderAll();
+    });
+  }
+  attachCrosshair(waveC);
+  attachCrosshair(specC);
+
+  // ---------- Signal generation ----------
+  const STATE = {
+    f: 1000,
+    FsSim: 8000,
+    sr: 48000,
+    duration: 1.0,   // sec audio buffer
+    viewTime: 0.01,  // 10ms window for plot
+    amp: 0.7,
+    analogDense: null,     // dense for view
+    sampledPoints: null,   // points at FsSim
+    reconZOH: null,        // reconstructed at sr (audio)
+    reconNoLPF: null,      // for compare spectrum
+    analogForAudio: null,  // original at sr for spectrum
+    audioCtx: null,
+    src: null,
+    playing: false
+  };
+
+  function updateParamsFromUI(){
+    // f: 20..20000
+    STATE.f = logMap(parseFloat(freq.value), 20, 20000);
+    // FsSim: 200..96000 (but sensible)
+    STATE.FsSim = logMap(parseFloat(fsSim.value), 200, 96000);
+    STATE.sr = parseInt(srOut.value, 10);
+
+    freqVal.textContent = STATE.f.toFixed(1);
+    fsSimVal.textContent = STATE.FsSim.toFixed(1);
+    srOutVal.textContent = STATE.sr.toString();
+
+    const nyq = STATE.FsSim / 2;
+    nyqVal.textContent = `${nyq.toFixed(1)} Hz`;
+
+    const af = aliasFreq(STATE.f, STATE.FsSim);
+    if (!isFinite(af)) aliasVal.textContent = "—";
+    else {
+      const warn = STATE.f > nyq + 1e-9;
+      aliasVal.innerHTML = `${af.toFixed(1)} Hz${warn ? ' <span class="warn">(alias!)</span>' : ''}`;
+    }
+  }
+
+  // Generate:
+  // - analog at sr (for reference spectrum)
+  // - sampled points at FsSim (time positions + values)
+  // - reconstructed ZOH at sr, optionally with simple LPF (teaching)
+  function regenerate(){
+    updateParamsFromUI();
+
+    const sr = STATE.sr;
+    const N = Math.floor(STATE.duration * sr);
+    const f = STATE.f;
+    const amp = STATE.amp;
+
+    // analog for audio at sr
+    const analog = new Float32Array(N);
+    for(let n=0;n<N;n++){
+      const t = n / sr;
+      analog[n] = amp * Math.sin(2*Math.PI*f*t);
+    }
+    STATE.analogForAudio = analog;
+
+    // sample at FsSim (simulate A/D sampling)
+    const FsSim = STATE.FsSim;
+    const TsSim = 1 / FsSim;
+    const sampleCount = Math.floor(STATE.duration * FsSim);
+    const ptsT = new Float32Array(sampleCount);
+    const ptsY = new Float32Array(sampleCount);
+    for(let k=0;k<sampleCount;k++){
+      const t = k * TsSim;
+      ptsT[k] = t;
+      ptsY[k] = amp * Math.sin(2*Math.PI*f*t);
+    }
+    STATE.sampledPoints = {t: ptsT, y: ptsY, FsSim};
+
+    // ZOH reconstruct to sr (hold each sample until next sample)
+    const recon = new Float32Array(N);
+    const reconNoLPF = new Float32Array(N);
+
+    let k = 0;
+    let held = ptsY[0] || 0;
+    let nextChange = TsSim;
+
+    // optional LPF on reconstructed signal (teaching)
+    let yPrev = 0;
+    const nyq = FsSim / 2;
+    // map to coefficient: lower cutoff when FsSim small
+    // a in [0.0..0.999]; choose a based on FsSim
+    const a = clamp(1 - (Math.min(nyq, 20000) / 24000), 0.0, 0.995); // heuristic
+
+    for(let n=0;n<N;n++){
+      const t = n / sr;
+      while (t >= nextChange && k < sampleCount-1){
+        k++;
+        held = ptsY[k];
+        nextChange = (k+1) * TsSim;
+      }
+      reconNoLPF[n] = held;
+      if (useLPF.checked){
+        yPrev = onePoleLPF(held, yPrev, a);
+        recon[n] = yPrev;
+      } else {
+        recon[n] = held;
+      }
+    }
+    STATE.reconZOH = recon;
+    STATE.reconNoLPF = reconNoLPF;
+
+    // dense analog for view (high density independent of sr)
+    // For smooth plot: oversample view at max(sr, 8*FsSim, 192k) but cap
+    const viewSr = Math.min(240000, Math.max(STATE.sr, Math.floor(8*FsSim)));
+    const viewN = Math.floor(STATE.viewTime * viewSr);
+    const dense = new Float32Array(viewN);
+    for(let i=0;i<viewN;i++){
+      const t = i / viewSr;
+      dense[i] = amp * Math.sin(2*Math.PI*f*t);
+    }
+    STATE.analogDense = {sr:viewSr, y:dense};
+
+    status.textContent = `Status: regenerated (f=${STATE.f.toFixed(1)}Hz, Fs_sim=${STATE.FsSim.toFixed(1)}Hz, outSR=${STATE.sr}Hz)`;
+    renderAll();
+
+    // If playing, refresh buffer seamlessly by stopping/starting
+    if (STATE.playing){
+      stopAudio();
+      playAudio();
+    }
+  }
+
+  // ---------- Audio ----------
+  async function ensureAudioCtx(){
+    if (STATE.audioCtx && STATE.audioCtx.sampleRate === STATE.sr) return STATE.audioCtx;
+    if (STATE.audioCtx) { try{ await STATE.audioCtx.close(); }catch(e){} }
+    const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: STATE.sr });
+    STATE.audioCtx = ctx;
+    return ctx;
+  }
+
+  async function playAudio(){
+    await ensureAudioCtx();
+    const ctx = STATE.audioCtx;
+
+    const buf = ctx.createBuffer(1, STATE.reconZOH.length, ctx.sampleRate);
+    buf.copyToChannel(STATE.reconZOH, 0);
+
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+
+    // gentle gain
+    const gain = ctx.createGain();
+    gain.gain.value = 0.9;
+
+    src.connect(gain).connect(ctx.destination);
+    src.start();
+
+    STATE.src = src;
+    STATE.playing = true;
+    playBtn.disabled = true;
+    stopBtn.disabled = false;
+
+    status.textContent = `Status: playing (reconstructed ZOH${useLPF.checked ? " + LPF" : ""})`;
+  }
+
+  function stopAudio(){
+    if (STATE.src){
+      try{ STATE.src.stop(); }catch(e){}
+      try{ STATE.src.disconnect(); }catch(e){}
+      STATE.src = null;
+    }
+    STATE.playing = false;
+    playBtn.disabled = false;
+    stopBtn.disabled = true;
+    status.textContent = "Status: stopped";
+  }
+
+  // ---------- Rendering ----------
+  function drawGrid(ctx, w, h){
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = "rgba(8,12,20,.95)";
+    ctx.fillRect(0,0,w,h);
+
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim() || "#243044";
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.9;
+
+    const gx = 10, gy = 6;
+    for(let i=1;i<gx;i++){
+      const x = w*i/gx;
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+    }
+    for(let j=1;j<gy;j++){
+      const y = h*j/gy;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+    }
+    ctx.globalAlpha = 1.0;
+
+    // axis center line
+    ctx.strokeStyle = "#334155";
+    ctx.beginPath(); ctx.moveTo(0,h/2); ctx.lineTo(w,h/2); ctx.stroke();
+  }
+
+  function renderWave(){
+    const ctx = waveCtx;
+    if (!ctx) return;
+    const rect = waveC.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    drawGrid(ctx, w, h);
+
+    // mapping
+    const tMax = STATE.viewTime;
+    const yScale = 0.42*h;
+
+    // analog dense
+    const dense = STATE.analogDense;
+    if (dense){
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--a').trim() || "#60a5fa";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const yArr = dense.y;
+      const sr = dense.sr;
+      for(let i=0;i<yArr.length;i++){
+        const t = i/sr;
+        if (t>tMax) break;
+        const x = (t/tMax)*w;
+        const y = h/2 - yArr[i]*yScale;
+        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+
+    // recon ZOH for view (use reconNoLPF for visibility of steps if LPF enabled)
+    if (STATE.reconNoLPF && showRecon.checked){
+      const arr = useLPF.checked ? STATE.reconZOH : STATE.reconNoLPF;
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--b').trim() || "#34d399";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const sr = STATE.sr;
+      const N = Math.floor(tMax*sr);
+      for(let n=0;n<=N && n<arr.length;n++){
+        const t = n/sr;
+        const x = (t/tMax)*w;
+        const y = h/2 - arr[n]*yScale;
+        if (n===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+
+    // sample points
+    if (STATE.sampledPoints && showPoints.checked){
+      const {t:ptsT, y:ptsY} = STATE.sampledPoints;
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--c').trim() || "#f59e0b";
+      const r = 3;
+      for(let k=0;k<ptsT.length;k++){
+        const t = ptsT[k];
+        if (t>tMax) break;
+        const x = (t/tMax)*w;
+        const y = h/2 - ptsY[k]*yScale;
+        ctx.beginPath();
+        ctx.arc(x,y,r,0,Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    // Nyquist warning annotation
+    const nyq = STATE.FsSim/2;
+    const warn = STATE.f > nyq + 1e-9;
+    ctx.fillStyle = warn ? "rgba(251,113,133,.95)" : "rgba(148,163,184,.95)";
+    ctx.font = "12px " + getComputedStyle(document.documentElement).getPropertyValue('--mono').trim();
+    ctx.fillText(`f=${STATE.f.toFixed(1)}Hz, Fs_sim=${STATE.FsSim.toFixed(1)}Hz, Nyq=${nyq.toFixed(1)}Hz${warn ? "  (alias!)" : ""}`, 10, 18);
+
+    // crosshair
+    if (cross.on){
+      ctx.strokeStyle = "rgba(148,163,184,.7)";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cross.x,0); ctx.lineTo(cross.x,h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,cross.y); ctx.lineTo(w,cross.y); ctx.stroke();
+    }
+  }
+
+  function renderSpec(){
+    const ctx = specCtx;
+    if (!ctx) return;
+    const rect = specC.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    drawGrid(ctx, w, h);
+
+    if (!STATE.analogForAudio || !STATE.reconNoLPF) return;
+
+    // compute spectra (cap 20k)
+    const maxHz = Math.min(20000, STATE.sr/2);
+    const spA = computeSpectrum(STATE.analogForAudio, STATE.sr, maxHz);
+    const spB = computeSpectrum(useLPF.checked ? STATE.reconZOH : STATE.reconNoLPF, STATE.sr, maxHz);
+
+    // draw with log freq axis (20..maxHz)
+    const fMin = 20, fMax = maxHz;
+    const toX = (f)=>{
+      const lf = Math.log(f);
+      const l0 = Math.log(fMin), l1 = Math.log(fMax);
+      return (lf - l0) / (l1 - l0) * w;
+    };
+    const toY = (mag)=>{
+      // magnitude to dB
+      const db = 20*Math.log10(Math.max(1e-6, mag));
+      // map [-90..0] dB to [h..0]
+      const dbMin = -90, dbMax = 0;
+      const t = (db - dbMin) / (dbMax - dbMin);
+      return (1 - clamp(t,0,1)) * (h-24) + 12;
+    };
+
+    function strokeSpectrum(freqs, mags, color){
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      let moved=false;
+      for(let i=0;i<freqs.length;i++){
+        const f = freqs[i];
+        if (f < fMin) continue;
+        const x = toX(f);
+        const y = toY(mags[i]);
+        if (!moved){ ctx.moveTo(x,y); moved=true; }
+        else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+
+    strokeSpectrum(spA.freqs, spA.mags, getComputedStyle(document.documentElement).getPropertyValue('--a').trim() || "#60a5fa");
+    strokeSpectrum(spB.freqs, spB.mags, getComputedStyle(document.documentElement).getPropertyValue('--b').trim() || "#34d399");
+
+    // Nyquist line (Sim)
+    const nyq = STATE.FsSim/2;
+    if (nyq >= fMin && nyq <= fMax){
+      ctx.strokeStyle = "rgba(251,113,133,.65)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6,6]);
+      const x = toX(nyq);
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(251,113,133,.9)";
+      ctx.font = "12px " + getComputedStyle(document.documentElement).getPropertyValue('--mono').trim();
+      ctx.fillText(`Nyquist (Sim) ${nyq.toFixed(1)}Hz`, clamp(x+6, 8, w-160), 18);
+    }
+
+    // labels
+    ctx.fillStyle = "rgba(148,163,184,.95)";
+    ctx.font = "12px " + getComputedStyle(document.documentElement).getPropertyValue('--mono').trim();
+    ctx.fillText(`Log-f axis: ${fMin}..${fMax.toFixed(0)}Hz   |   dB scale: -90..0dB`, 10, h-10);
+
+    // crosshair
+    if (cross.on){
+      ctx.strokeStyle = "rgba(148,163,184,.7)";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cross.x,0); ctx.lineTo(cross.x,h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,cross.y); ctx.lineTo(w,cross.y); ctx.stroke();
+    }
+  }
+
+  function renderAll(){
+    renderWave();
+    renderSpec();
+  }
+
+  // ---------- Wire events ----------
+  freq.addEventListener('input', ()=>{ updateParamsFromUI(); renderAll(); });
+  fsSim.addEventListener('input', ()=>{ updateParamsFromUI(); renderAll(); });
+  srOut.addEventListener('change', ()=>{ regenerate(); });
+
+  showRecon.addEventListener('change', renderAll);
+  showPoints.addEventListener('change', renderAll);
+  useLPF.addEventListener('change', ()=>{ regenerate(); });
+
+  regenBtn.addEventListener('click', regenerate);
+  playBtn.addEventListener('click', async ()=>{
+    if (!STATE.reconZOH) regenerate();
+    await playAudio();
+  });
+  stopBtn.addEventListener('click', stopAudio);
+
+  // Init
+  updateParamsFromUI();
+  resizeAll();
+  regenerate();
+})();
+</script>
+</body>
+</html>

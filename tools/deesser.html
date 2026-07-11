@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>One-Knob Split-Band De-Esser v8 Stage 16a-1 (Export WAV)</title>
+<style>
+  :root{--bg:#0f1116;--panel:#171b24;--panel2:#1d2430;--border:#2a3445;--text:#e8edf5;--muted:#9aa8b8;--accent:#56c8ff;--accent2:#7ef0c4;--warn:#ffd26d;--danger:#ff7c7c}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:linear-gradient(180deg,#0d1015,#131924);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif}
+  body{padding:16px}
+  .app{max-width:1440px;margin:0 auto;display:grid;grid-template-columns:470px 1fr;gap:16px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.28)}
+  .card h2{margin:0;padding:14px 16px;border-bottom:1px solid var(--border);font-size:18px;background:rgba(255,255,255,.02)}
+  .section{padding:14px 16px}
+  .left{display:grid;gap:16px;position:sticky;top:16px;align-self:start}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row+.row{margin-top:10px}
+  .label{min-width:90px;color:var(--muted);font-size:13px}.pill{display:inline-flex;align-items:center;justify-content:center;padding:5px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--muted);font-size:12px}.small{font-size:12px}.muted{color:var(--muted)}.mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  button,select{appearance:none;border:none;cursor:pointer;min-height:40px;padding:10px 14px;border-radius:12px;border:1px solid #344156;background:#232b39;color:var(--text);font-size:14px;font-weight:700;transition:.15s ease}
+  button:hover,select:hover{transform:translateY(-1px);background:#2b3546}button:active{transform:translateY(0)}button.primary{background:#214b64;border-color:#326a86}button.warn{background:#5f4727;border-color:#8a6537}button.active{background:#0f5a4a;border-color:#1c8d73;color:#e8fff8;box-shadow:0 0 0 1px rgba(120,239,195,.1) inset,0 0 16px rgba(120,239,195,.15)}button:disabled{opacity:.5;cursor:not-allowed;transform:none}.toggle-chip{min-height:auto;padding:6px 10px;font-size:12px;border-radius:999px}
+  input[type=file]{width:100%;background:#0f1520;border:1px solid var(--border);border-radius:12px;color:var(--muted);padding:10px} input[type=range]{width:100%}
+  .amount-big{display:grid;gap:12px}.amount-read{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}.amount-read .k{color:var(--muted);font-size:13px}.amount-read .v{font-size:42px;line-height:1;font-weight:800}
+  .param-list,.ctrl-grid{display:grid;gap:10px;margin-top:12px}.param,.ctrl-row{display:grid;grid-template-columns:96px 1fr auto;gap:10px;align-items:center;font-size:13px}.bar{position:relative;height:10px;border-radius:999px;background:#0d131c;border:1px solid #2a3445;overflow:hidden}.bar>span{position:absolute;left:0;top:0;bottom:0;width:0%;background:linear-gradient(90deg,#35506b,#55c8ff)} .ctrl-row .value{min-width:74px;text-align:right}
+  .meters{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.meter-card{border:1px solid var(--border);border-radius:16px;background:rgba(255,255,255,.02);padding:12px}.meter-title{color:var(--muted);font-size:12px;margin-bottom:8px;letter-spacing:.04em}.meter{position:relative;height:18px;border-radius:999px;overflow:hidden;background:#0e141e;border:1px solid #2b3546}.meter .fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:linear-gradient(90deg,#29496a 0%,#54c7ff 48%,#7fefc4 78%,#ffd36b 91%,#ff7a7a 100%)}.meter.reduction .fill{left:auto;right:0;background:linear-gradient(270deg,#24425d 0%,#3cb3ff 55%,#7fefc4 100%)}.meter-scale{display:flex;justify-content:space-between;margin-top:6px;color:var(--muted);font-size:12px}
+  .readouts{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:12px}.readout{border:1px solid var(--border);background:rgba(255,255,255,.02);border-radius:14px;padding:10px 12px;min-width:0}.readout .k{color:var(--muted);font-size:12px;margin-bottom:4px;white-space:nowrap}.readout .v{font-size:22px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.readout .s{color:var(--muted);font-size:12px}
+  .pos-wrap{margin-top:14px;display:grid;gap:8px}.pos-head{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:12px;color:var(--muted)} .pos-bar{position:relative;height:12px;border-radius:999px;overflow:hidden;background:#0e141e;border:1px solid #2b3546;cursor:pointer;touch-action:none}.pos-bar .fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:linear-gradient(90deg,#35506b,#56c8ff)} .pos-bar .thumb{position:absolute;top:-2px;width:8px;height:16px;border-radius:999px;background:#e8edf5;box-shadow:0 0 0 1px rgba(0,0,0,.35);transform:translateX(-50%)} .pos-bar .loopA,.pos-bar .loopB{position:absolute;top:-1px;bottom:-1px;width:2px;border-radius:2px;pointer-events:none}.pos-bar .loopA{background:#ffd26d}.pos-bar .loopB{background:#ff7c7c}
+  .spec-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;margin-bottom:10px}.spec-right{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}.spec-readout{display:flex;gap:14px;flex-wrap:nowrap;white-space:nowrap;min-width:0;overflow:hidden;font-size:12px;color:var(--muted)} .spec-readout .val{color:var(--text);font-weight:700}.spec-smooth{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;white-space:nowrap}.spec-smooth input[type=range]{width:140px;flex:0 0 auto}
+  .legend{display:flex;gap:10px;flex-wrap:wrap}.swatch{width:12px;height:12px;border-radius:999px}.swatch.pre{background:#56c8ff}.swatch.post{background:#7ef0c4}.swatch.peak{background:#ffd26d}
+  .loop-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-top:10px}.loop-readout{display:flex;gap:14px;flex-wrap:nowrap;white-space:nowrap;overflow:hidden;font-size:12px;color:var(--muted)} .loop-actions{display:flex;gap:10px;flex-wrap:nowrap}
+  #spectrumCanvas{width:100%;height:380px;display:block;cursor:crosshair} #history{width:100%;height:320px;display:block} canvas{display:block;width:100%;background:#0b1118;border:1px solid #293447;border-radius:16px}
+  .log{height:220px;overflow:auto;white-space:pre-wrap;font-size:12px;line-height:1.5;color:#bdd0e0;background:#0b1118;border:1px solid #273245;border-radius:14px;padding:12px}
+  @media (max-width:1200px){.readouts{grid-template-columns:repeat(3,1fr)}.spec-top,.loop-row{grid-template-columns:1fr}.spec-right,.loop-actions{justify-content:space-between}}
+  @media (max-width:1100px){.app{grid-template-columns:1fr}.left{position:static}}
+  @media (max-width:720px){.meters{grid-template-columns:1fr}.readouts{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="left">
+    <div class="card">
+      <h2>One-Knob Split-Band De-Esser</h2>
+      <div class="section">
+        <div class="amount-big" style="margin-top:12px"><div class="amount-read"><div class="k">AMOUNT</div><div id="amountValue" class="v">40%</div></div><input id="amount" type="range" min="0" max="100" step="1" value="40" /></div>
+        <div class="param-list">
+          <div class="param"><div class="muted">Threshold</div><div class="bar"><span id="barThreshold"></span></div><div id="readThreshold">-27.6 dB</div></div>
+          <div class="param"><div class="muted">Ratio</div><div class="bar"><span id="barRatio"></span></div><div id="readRatio">4.1 : 1</div></div>
+          <div class="param"><div class="muted">Max GR</div><div class="bar"><span id="barMaxGR"></span></div><div id="readMaxGR">4.8 dB</div></div>
+          <div class="param"><div class="muted">Attack</div><div class="bar"><span style="width:18%"></span></div><div>1 ms</div></div>
+          <div class="param"><div class="muted">Release</div><div class="bar"><span style="width:55%"></span></div><div>50 ms</div></div>
+          <div class="param"><div class="muted">Xover</div><div class="bar"><span style="width:50%"></span></div><div>5.0 kHz</div></div>
+          <div class="param"><div class="muted">Detect</div><div class="bar"><span style="width:70%"></span></div><div>HPF 4.5k + Peak 7k</div></div>
+        </div>
+        <div class="ctrl-grid">
+          <div class="ctrl-row"><div class="muted">HPF</div><button id="btnHpf" class="toggle-chip">OFF</button><div class="value small muted">Pre Input</div></div>
+          <div class="ctrl-row"><div class="muted">HPF Freq</div><input id="hpfFreq" type="range" min="20" max="400" step="1" value="80" /><div id="hpfFreqText" class="value mono">80 Hz</div></div>
+          <div class="ctrl-row"><div class="muted">HPF Slope</div><select id="hpfSlope"><option value="12">-12 dB/oct</option><option value="24">-24 dB/oct</option><option value="36">-36 dB/oct</option><option value="48">-48 dB/oct</option></select><div id="hpfSlopeText" class="value mono">-12 dB/oct</div></div>
+          <div class="ctrl-row"><div class="muted">Export</div><button id="btnExportWav" class="primary">Export WAV</button><div id="exportStatus" class="value small muted">Processed</div></div>
+          <div class="ctrl-row"><div class="muted">Detector</div><div id="detectorBackendText" class="pill mono">Uninitialized</div><div id="detectorPolicyText" class="value small muted">Auto</div></div>
+          <div class="ctrl-row"><div class="muted">Fallback</div><button id="btnForceFallback" class="toggle-chip">AUTO</button><div class="value small muted">Force ScriptProcessor</div></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="row"><label class="label">ファイル</label><input id="fileInput" type="file" accept="audio/*" /></div>
+        <div class="row"><label class="label">再生</label><button id="btnTestTone">テストトーン</button><button id="btnPlay" class="primary">Play</button><button id="btnPause">Pause</button><button id="btnResume">Resume</button><button id="btnStop" class="warn">Stop</button></div>
+        <div class="row"><label class="label">処理</label><button id="btnBypass">Bypass</button><button id="btnKeyListen">Key Listen</button><button id="btnReset">Reset GR</button></div>
+      </div>
+    </div>
+    <div class="card"><h2>Log</h2><div class="section"><div id="log" class="log"></div></div></div>
+  </div>
+  <div class="right" style="display:grid;gap:16px">
+    <div class="card"><h2>Realtime Meters</h2><div class="section">
+      <div class="meters">
+        <div class="meter-card"><div class="meter-title">INPUT</div><div class="meter"><div id="inFill" class="fill"></div></div><div class="meter-scale"><span>-60 dB</span><span id="inText">-∞ dBFS</span><span>0 dB</span></div></div>
+        <div class="meter-card"><div class="meter-title">OUTPUT</div><div class="meter"><div id="outFill" class="fill"></div></div><div class="meter-scale"><span>-60 dB</span><span id="outText">-∞ dBFS</span><span>0 dB</span></div></div>
+        <div class="meter-card"><div class="meter-title">DETECTOR</div><div class="meter"><div id="detFill" class="fill"></div></div><div class="meter-scale"><span>-60 dB</span><span id="detText">-∞ dB</span><span>0 dB</span></div></div>
+        <div class="meter-card"><div class="meter-title">GAIN REDUCTION</div><div class="meter reduction"><div id="grFill" class="fill"></div></div><div class="meter-scale"><span>12 dB</span><span id="grText">0.0 dB</span><span>0 dB</span></div></div>
+      </div>
+      <div class="readouts">
+        <div class="readout"><div class="k">State</div><div id="stateText" class="v">Stopped</div><div class="s">Transport</div></div>
+        <div class="readout"><div class="k">Loaded</div><div id="loadedText" class="v" style="font-size:18px">No</div><div class="s">Buffer source</div></div>
+        <div class="readout"><div class="k">Position</div><div id="positionText" class="v mono" style="font-size:18px">00:00.0</div><div class="s">Current</div></div>
+        <div class="readout"><div class="k">Duration</div><div id="durationText" class="v mono" style="font-size:18px">00:00.0</div><div class="s">Total</div></div>
+        <div class="readout"><div class="k">Reduction</div><div id="reductionText" class="v">0.0</div><div class="s">dB</div></div>
+        <div class="readout"><div class="k">High Gain</div><div id="highGainText" class="v">0.0</div><div class="s">dB</div></div>
+      </div>
+      <div class="pos-wrap"><div class="pos-head"><span>Playback Position（クリック / ドラッグ / ループ境界表示）</span><span id="positionHeadText" class="mono">00:00.0 / 00:00.0</span></div><div id="positionBar" class="pos-bar"><div id="positionFill" class="fill"></div><div id="positionThumb" class="thumb"></div><div id="loopAMarker" class="loopA" style="display:none"></div><div id="loopBMarker" class="loopB" style="display:none"></div></div></div>
+      <div class="loop-row"><div class="loop-readout"><span>Loop: <span id="loopState" class="mono">OFF</span></span><span>A: <span id="loopAText" class="mono">--</span></span><span>B: <span id="loopBText" class="mono">--</span></span></div><div class="loop-actions"><button id="btnSetA">Set A</button><button id="btnSetB">Set B</button><button id="btnLoop">Loop</button><button id="btnClearLoop">Clear</button></div></div>
+    </div></div>
+    <div class="card"><h2>Pre / Post Spectrum</h2><div class="section">
+      <div class="spec-top"><div class="spec-readout"><span>Freq: <span id="cursorFreq" class="val mono">--</span></span><span>PRE: <span id="cursorPre" class="val mono">--</span></span><span>POST: <span id="cursorPost" class="val mono">--</span></span><span>Cursor: <span id="cursorMode" class="val mono">UNLOCK</span></span><span>Playback: <span id="specPlaybackTime" class="val mono">00:00.0</span></span></div><div class="spec-right"><div class="spec-smooth"><label for="specSmooth" class="muted small">Smooth</label><input id="specSmooth" type="range" min="0" max="95" step="1" value="80" /><span id="specSmoothText" class="mono small muted" style="min-width:36px;text-align:right">0.80</span></div><div class="legend"><button id="togglePre" class="toggle-chip active"><span class="swatch pre"></span> PRE</button><button id="togglePost" class="toggle-chip active"><span class="swatch post"></span> POST</button><button id="togglePeak" class="toggle-chip active"><span class="swatch peak"></span> Peak</button></div></div></div>
+      <canvas id="spectrumCanvas"></canvas>
+    </div></div>
+    <div class="card"><h2>Detector / GR History</h2><div class="section"><canvas id="history"></canvas></div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function bootTarget(){ return document.getElementById('log'); }
+  function bootLog(message){
+    try{
+      var el = bootTarget();
+      var line = '[' + new Date().toLocaleTimeString() + '] ' + String(message);
+      if(el){
+        if(typeof el.value === 'string'){
+          el.value += (el.value ? '\n' : '') + line;
+          el.scrollTop = el.scrollHeight;
+        }else{
+          el.textContent += (el.textContent ? '\n' : '') + line;
+        }
+      }
+      if(window.console && console.log) console.log(line);
+    }catch(e){}
+  }
+  window.__bootLog = bootLog;
+  window.addEventListener('error', function(e){
+    var msg = (e && (e.message || (e.error && e.error.message) || e.error)) || 'unknown error';
+    bootLog('window error: ' + String(msg));
+  });
+  window.addEventListener('unhandledrejection', function(e){
+    var reason = e && e.reason;
+    var text = (reason && reason.message) ? reason.message : String(reason);
+    bootLog('unhandled rejection: ' + text);
+  });
+  bootLog('bootstrap parsed');
+})();
+</script>
+<script>
+(() => {
+  'use strict';
+  const $=(id)=>document.getElementById(id);
+
+  // ============================================================
+  // DOM Refs / State / Constants
+  // ============================================================
+  const ui={amount:$('amount'),amountValue:$('amountValue'),barThreshold:$('barThreshold'),barRatio:$('barRatio'),barMaxGR:$('barMaxGR'),readThreshold:$('readThreshold'),readRatio:$('readRatio'),readMaxGR:$('readMaxGR'),fileInput:$('fileInput'),btnTestTone:$('btnTestTone'),btnPlay:$('btnPlay'),btnPause:$('btnPause'),btnResume:$('btnResume'),btnStop:$('btnStop'),btnBypass:$('btnBypass'),btnKeyListen:$('btnKeyListen'),btnReset:$('btnReset'),btnSetA:$('btnSetA'),btnSetB:$('btnSetB'),btnLoop:$('btnLoop'),btnClearLoop:$('btnClearLoop'),btnHpf:$('btnHpf'),hpfFreq:$('hpfFreq'),hpfFreqText:$('hpfFreqText'),hpfSlope:$('hpfSlope'),hpfSlopeText:$('hpfSlopeText'),btnExportWav:$('btnExportWav'),exportStatus:$('exportStatus'),detectorBackendText:$('detectorBackendText'),detectorPolicyText:$('detectorPolicyText'),btnForceFallback:$('btnForceFallback'),inFill:$('inFill'),outFill:$('outFill'),detFill:$('detFill'),grFill:$('grFill'),inText:$('inText'),outText:$('outText'),detText:$('detText'),grText:$('grText'),stateText:$('stateText'),loadedText:$('loadedText'),positionText:$('positionText'),durationText:$('durationText'),reductionText:$('reductionText'),highGainText:$('highGainText'),positionHeadText:$('positionHeadText'),positionFill:$('positionFill'),positionBar:$('positionBar'),positionThumb:$('positionThumb'),loopAMarker:$('loopAMarker'),loopBMarker:$('loopBMarker'),loopState:$('loopState'),loopAText:$('loopAText'),loopBText:$('loopBText'),spectrumCanvas:$('spectrumCanvas'),history:$('history'),log:$('log'),cursorFreq:$('cursorFreq'),cursorPre:$('cursorPre'),cursorPost:$('cursorPost'),cursorMode:$('cursorMode'),specPlaybackTime:$('specPlaybackTime'),specSmooth:$('specSmooth'),specSmoothText:$('specSmoothText'),togglePre:$('togglePre'),togglePost:$('togglePost'),togglePeak:$('togglePeak')};
+
+function createInitialHistoryState(){
+  return {
+    det:new Float32Array(240).fill(-60),
+    gr:new Float32Array(240).fill(0),
+    tick:0
+  };
+}
+
+function createInitialState(){
+  return {
+    params:{amount01:0.40,bypass:false,keyListen:false,hpfOn:false,hpfFreq:80,hpfSlope:12},
+    transport:{status:'stopped',loaded:false,loadedName:'',audioBuffer:null,source:null,startedAt:0,offsetSec:0},
+    meter:{detectorDb:-Infinity,reductionDb:0,highGainDb:0,inDb:-Infinity,outDb:-Infinity},
+    detector:{backend:'Uninitialized',detail:'',forceScriptProcessor:false},
+    spectrum:{cursorActive:false,cursorX:0,cursorLocked:false,showPre:true,showPost:true,showPeak:true,peakPre:null,peakPost:null,peakDecayDbPerFrame:0.30},
+    seek:{dragging:false,previewSec:0,wasPlaying:false},
+    loop:{enabled:false,pointA:null,pointB:null},
+    history:createInitialHistoryState(),
+    exportState:{isExporting:false},
+    runtime:{rafId:0}
+  };
+}
+
+function createFixedConfig(){
+  return {
+    testToneDurationSec:15.0,
+    crossoverHz:5000,
+    detectHPHz:4500,
+    detectPeakHz:7000,
+    detectPeakQ:1.4,
+    detectPeakGainDb:8,
+    attackMs:1.0,
+    releaseMs:50.0,
+    kneeDb:6.0,
+    maxReductionCeilDb:12,
+    spectrumMinHz:20,
+    spectrumMaxHz:20000,
+    spectrumMinDb:-100,
+    spectrumMaxDb:0
+  };
+}
+
+function createInitialNodes(){
+  return {
+    inputBus:null,inputAnalyser:null,
+    lowpass:null,lowGain:null,highpass:null,highGain:null,wetSum:null,
+    dryGain:null,wetGain:null,mainGain:null,keyGain:null,
+    outputAnalyser:null,master:null,
+    detHP:null,detPeak:null,detProc:null,detNull:null,
+    hpfDryGain:null,hpfWetGain:null,
+    hpf1:null,hpf2:null,hpf3:null,hpf4:null,
+    hpfSel12:null,hpfSel24:null,hpfSel36:null,hpfSel48:null
+  };
+}
+
+const state=createInitialState();
+const FIXED=createFixedConfig();
+let ctx=null;
+let nodes=createInitialNodes();
+let detectorWorkletNode=null, detectorWorkletUrl=null;
+  const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v)), lerp=(a,b,t)=>a+(b-a)*t, dbToGain=(db)=>Math.pow(10,db/20), gainToDb=(g)=>(!isFinite(g)||g<=1e-12)?-Infinity:20*Math.log10(g), safeDbText=(db,d=1)=>isFinite(db)?db.toFixed(d):'-∞', clampSpectrumDb=(db)=>clamp(Number.isFinite(db)?db:FIXED.spectrumMinDb,FIXED.spectrumMinDb,FIXED.spectrumMaxDb);
+  // ============================================================
+  // Utility Functions
+  // ============================================================
+
+  function log(msg){ const t=new Date().toLocaleTimeString('ja-JP',{hour12:false}); ui.log.textContent += `[${t}] ${msg}\n`; ui.log.scrollTop=ui.log.scrollHeight; }
+  function formatTime(sec){ const s=Math.max(0,sec||0); const mm=Math.floor(s/60), ss=Math.floor(s%60), ds=Math.floor((s-Math.floor(s))*10); return `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}.${ds}`; }
+  function formatFreq(freq){ if(!isFinite(freq)) return '--'; return freq>=1000?`${(freq/1000).toFixed(freq>=10000?1:2)} kHz`:`${freq.toFixed(freq>=100?0:1)} Hz`; }
+  const getDurationSec=()=>state.transport.audioBuffer?state.transport.audioBuffer.duration:0;
+  function getCurrentPositionSec(){ if(state.seek.dragging) return clamp(state.seek.previewSec,0,getDurationSec()); const dur=getDurationSec(); if(!dur) return 0; if(state.transport.status==='playing'&&state.transport.source&&ctx) return clamp(ctx.currentTime-state.transport.startedAt,0,dur); return clamp(state.transport.offsetSec,0,dur); }
+  function amountToParams(x){ x=clamp(x,0,1); return {thresholdDb:lerp(-18,-42,x), ratio:lerp(1.5,8.0,x), maxReductionDb:lerp(0,FIXED.maxReductionCeilDb,x), attackMs:FIXED.attackMs, releaseMs:FIXED.releaseMs, kneeDb:FIXED.kneeDb}; }
+  function softKneeGR(detectorDb, thresholdDb, ratio, maxReductionDb, kneeDb){ if(!isFinite(detectorDb)) return 0; const over=detectorDb-thresholdDb; if(kneeDb>0){ const half=kneeDb*0.5; if(over<=-half) return 0; if(over>=half){ const compressedOver=over/ratio; return clamp(over-compressedOver,0,maxReductionDb);} const x=over+half; const y=(1/ratio-1)*(x*x)/(2*kneeDb); return clamp(-y,0,maxReductionDb);} if(over<=0) return 0; const compressedOver=over/ratio; return clamp(over-compressedOver,0,maxReductionDb); }
+  // ============================================================
+  // Stage-10B Upgrade
+  // Legacy Detector / Export operational entry points are now reduced to thin wrappers.
+  // Runtime ownership is centered on DetectorBackendManagerStage3 / ExportEngine.
+  // ============================================================
+
+function renderDetectorBackendUI(){ if(window.app && app.detectorBackendManager) return app.detectorBackendManager.renderBackendUI(); }
+  function setDetectorBackendStatus(name,detail=''){ if(window.app && app.detectorBackendManager) return app.detectorBackendManager.setStatus(name,detail); }
+  function applyDetectorRms(rms,frameCount){ if(window.app && app.detectorBackendManager) return app.detectorBackendManager.applyDetectorRms(rms,frameCount); }
+  function cleanupDetectorBackend(){ if(window.app && app.detectorBackendManager) return app.detectorBackendManager.cleanup(); }
+  function installScriptProcessorDetector(detail){ if(window.app && app.detectorBackendManager) return app.detectorBackendManager.installScriptProcessorBackend(detail); }
+  async function installPreferredDetectorBackend(){ if(window.app && app.detectorBackendManager) return app.detectorBackendManager.installPreferredBackend(); }
+  const pctFromDb=(db,floor=-60,ceil=0)=>!isFinite(db)?0:clamp((db-floor)/(ceil-floor),0,1)*100, setBar=(el,p)=>el.style.width=`${clamp(p,0,100)}%`;
+  function resizeCanvasToDisplaySize(c,h){ const dpr=Math.max(1,window.devicePixelRatio||1), w=c.clientWidth||300, tw=Math.round(w*dpr), th=Math.round(h*dpr); if(c.width!==tw||c.height!==th){ c.width=tw; c.height=th;} return {dpr,cssWidth:w,cssHeight:h}; }
+  // ============================================================
+  // Stage-9 Upgrade
+  // Legacy UI update bodies are now reduced to thin wrappers.
+  // UIRenderer owns the real UI update implementation.
+  // ============================================================
+
+  function updateParamUI(){ if(window.app && app.uiRenderer) return app.uiRenderer.renderAmountControl(); }
+  function updateHpfUI(){ if(window.app && app.uiRenderer) return app.uiRenderer.renderHpfControl(); }
+  function updateExportUI(text){ if(window.app && app.uiRenderer) return app.uiRenderer.renderExportState(text); }
+  function updateCursorReadout(freq,preDb,postDb){ if(window.app && app.uiRenderer) return app.uiRenderer.renderSpectrumCursor(freq,preDb,postDb); }
+  function updateSpectrumSmoothing(){ if(window.app && app.uiRenderer) return app.uiRenderer.applySpectrumSmoothing(); }
+  function updateToggleStyles(){ if(window.app && app.uiRenderer) return app.uiRenderer.updateToggleStyles(); }
+  function updateLoopMarkers(){ if(window.app && app.uiRenderer) return app.uiRenderer.updateLoopMarkers(); }
+  function updateStateUI(){ if(window.app && app.uiRenderer) return app.uiRenderer.renderTransportState(); }
+  function updateMetersUI(){ if(window.app && app.uiRenderer) return app.uiRenderer.renderMeterState(); }
+  function pushHistory(arr,val){ arr.copyWithin(0,1); arr[arr.length-1]=val; }
+  function syncHPF(){ if(!ctx||!nodes.hpfDryGain) return; const now=ctx.currentTime, wetOn=state.params.hpfOn?1:0, dryOn=state.params.hpfOn?0:1; const slope=state.params.hpfSlope; [nodes.hpf1,nodes.hpf2,nodes.hpf3,nodes.hpf4].forEach(f=>{ f.frequency.setValueAtTime(state.params.hpfFreq,now); f.Q.setValueAtTime(0.707,now); }); nodes.hpfDryGain.gain.setValueAtTime(dryOn,now); nodes.hpfWetGain.gain.setValueAtTime(wetOn,now); nodes.hpfSel12.gain.setValueAtTime(slope===12?1:0,now); nodes.hpfSel24.gain.setValueAtTime(slope===24?1:0,now); nodes.hpfSel36.gain.setValueAtTime(slope===36?1:0,now); nodes.hpfSel48.gain.setValueAtTime(slope===48?1:0,now); }
+  function drawHistory(){ const c=ui.history,s=resizeCanvasToDisplaySize(c,320),g=c.getContext('2d'),dpr=s.dpr,W=s.cssWidth,H=s.cssHeight; g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,c.width,c.height); g.scale(dpr,dpr); g.fillStyle='#0b1118'; g.fillRect(0,0,W,H); const padL=48,padR=18,padT=18,padB=28,px=padL,py=padT,pw=W-padL-padR,ph=H-padT-padB; g.strokeStyle='rgba(255,255,255,.08)'; g.lineWidth=1; g.beginPath(); for(let i=0;i<=6;i++){const y=py+ph*i/6; g.moveTo(px,y); g.lineTo(px+pw,y);} for(let i=0;i<=8;i++){const x=px+pw*i/8; g.moveTo(x,py); g.lineTo(x,py+ph);} g.stroke(); g.strokeStyle='rgba(255,255,255,.16)'; g.strokeRect(px,py,pw,ph); g.fillStyle='#96a9bb'; g.font='12px sans-serif'; g.textAlign='right'; g.textBaseline='middle'; for(let i=0;i<=6;i++){ const v=lerp(0,-60,i/6); g.fillText(`${v.toFixed(0)} dB`,px-8,py+ph*i/6);} g.textAlign='left'; g.fillStyle='#5ecbff'; g.fillText('Detector',px+8,py+12); g.fillStyle='#7fefc4'; g.fillText('GR',px+90,py+12); g.strokeStyle='#5ecbff'; g.lineWidth=2; g.beginPath(); for(let i=0;i<state.history.det.length;i++){const x=px+pw*i/(state.history.det.length-1), y=py+(1-clamp((state.history.det[i]+60)/60,0,1))*ph; if(i===0) g.moveTo(x,y); else g.lineTo(x,y);} g.stroke(); g.strokeStyle='#7fefc4'; g.beginPath(); for(let i=0;i<state.history.gr.length;i++){const x=px+pw*i/(state.history.gr.length-1), y=py+(1-clamp(state.history.gr[i]/FIXED.maxReductionCeilDb,0,1))*ph; if(i===0) g.moveTo(x,y); else g.lineTo(x,y);} g.stroke(); }
+  function roundRect(ctx,x,y,w,h,r,fill,stroke){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); if(fill) ctx.fill(); if(stroke) ctx.stroke(); }
+  function drawSpectrum(){ const c=ui.spectrumCanvas,s=resizeCanvasToDisplaySize(c,380),g=c.getContext('2d'),dpr=s.dpr,W=s.cssWidth,H=s.cssHeight; g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,c.width,c.height); g.scale(dpr,dpr); g.fillStyle='#0b1118'; g.fillRect(0,0,W,H); const padL=54,padR=18,padT=18,padB=34,px=padL,py=padT,pw=W-padL-padR,ph=H-padT-padB; const minF=FIXED.spectrumMinHz,maxF=FIXED.spectrumMaxHz,minDb=FIXED.spectrumMinDb,maxDb=FIXED.spectrumMaxDb; const logMin=Math.log10(minF),logMax=Math.log10(maxF); const freqToNorm=(f)=>(Math.log10(clamp(f,minF,maxF))-logMin)/(logMax-logMin); const normToFreq=(n)=>Math.pow(10,logMin+clamp(n,0,1)*(logMax-logMin)); const dbToNorm=(db)=>1-clamp((clampSpectrumDb(db)-minDb)/(maxDb-minDb),0,1); const freqTicks=[20,50,100,200,500,1000,2000,5000,10000,20000], dbTicks=[-100,-80,-60,-40,-20,0]; g.strokeStyle='rgba(255,255,255,.08)'; g.lineWidth=1; g.beginPath(); for(const f of freqTicks){const x=px+freqToNorm(f)*pw; g.moveTo(x,py); g.lineTo(x,py+ph);} for(const db of dbTicks){const y=py+dbToNorm(db)*ph; g.moveTo(px,y); g.lineTo(px+pw,y);} g.stroke(); g.fillStyle='#96a9bb'; g.font='12px sans-serif'; g.textAlign='center'; g.textBaseline='top'; for(const f of freqTicks){const x=px+freqToNorm(f)*pw; g.fillText(f>=1000?`${(f/1000).toFixed(0)}k`:`${f}`,x,py+ph+8);} g.textAlign='right'; g.textBaseline='middle'; for(const db of dbTicks){g.fillText(`${db}`,px-8,py+dbToNorm(db)*ph);} g.strokeStyle='rgba(255,255,255,.16)'; g.strokeRect(px,py,pw,ph); if(!ctx||!nodes.inputAnalyser||!nodes.outputAnalyser){ updateCursorReadout(null,null,null); return; } const pre=new Float32Array(nodes.inputAnalyser.frequencyBinCount), post=new Float32Array(nodes.outputAnalyser.frequencyBinCount); nodes.inputAnalyser.getFloatFrequencyData(pre); nodes.outputAnalyser.getFloatFrequencyData(post); const sr=ctx.sampleRate, fftSize=nodes.inputAnalyser.fftSize; if(!state.spectrum.peakPre||state.spectrum.peakPre.length!==pre.length){state.spectrum.peakPre=new Float32Array(pre); state.spectrum.peakPost=new Float32Array(post);} else { for(let i=0;i<pre.length;i++){ state.spectrum.peakPre[i]=Math.max(pre[i], state.spectrum.peakPre[i]-state.spectrum.peakDecayDbPerFrame); state.spectrum.peakPost[i]=Math.max(post[i], state.spectrum.peakPost[i]-state.spectrum.peakDecayDbPerFrame);} } const drawLine=(data,color,width=2,dash=null)=>{ g.save(); g.strokeStyle=color; g.lineWidth=width; if(dash) g.setLineDash(dash); g.beginPath(); let started=false; for(let i=1;i<data.length;i++){ const freq=(i*sr)/fftSize; if(freq<minF||freq>maxF) continue; const x=px+freqToNorm(freq)*pw; const y=py+dbToNorm(data[i])*ph; if(!started){g.moveTo(x,y); started=true;} else g.lineTo(x,y);} g.stroke(); g.restore(); }; if(state.spectrum.showPre) drawLine(pre,'#56c8ff',2); if(state.spectrum.showPost) drawLine(post,'#7ef0c4',2); if(state.spectrum.showPeak&&state.spectrum.showPre) drawLine(state.spectrum.peakPre,'rgba(86,200,255,.55)',1,[4,3]); if(state.spectrum.showPeak&&state.spectrum.showPost) drawLine(state.spectrum.peakPost,'rgba(126,240,196,.55)',1,[4,3]); if(state.spectrum.cursorActive){ const norm=clamp((state.spectrum.cursorX-px)/pw,0,1), freq=normToFreq(norm), bin=clamp(Math.round(freq*fftSize/sr),1,pre.length-1), x=px+freqToNorm(freq)*pw, preDb=clampSpectrumDb(pre[bin]), postDb=clampSpectrumDb(post[bin]); g.strokeStyle='rgba(255,255,255,.45)'; g.lineWidth=1; g.beginPath(); g.moveTo(x,py); g.lineTo(x,py+ph); g.stroke(); if(state.spectrum.showPre){ g.fillStyle='#56c8ff'; g.beginPath(); g.arc(x,py+dbToNorm(preDb)*ph,3,0,Math.PI*2); g.fill(); } if(state.spectrum.showPost){ g.fillStyle='#7ef0c4'; g.beginPath(); g.arc(x,py+dbToNorm(postDb)*ph,3,0,Math.PI*2); g.fill(); } updateCursorReadout(freq,preDb,postDb); const lines=[formatFreq(freq),`PRE ${preDb.toFixed(1)} dB`,`POST ${postDb.toFixed(1)} dB`,state.spectrum.cursorLocked?'CLICK: UNLOCK':'CLICK: LOCK']; g.font='12px sans-serif'; let bw=0; for(const line of lines) bw=Math.max(bw,g.measureText(line).width); bw+=16; const bh=70; let bx=x+10; if(bx+bw>px+pw) bx=x-bw-10; let by=py+8; if(by+bh>py+ph) by=py+ph-bh-8; g.fillStyle='rgba(12,18,28,.92)'; g.strokeStyle='rgba(255,255,255,.18)'; roundRect(g,bx,by,bw,bh,10,true,true); g.textAlign='left'; g.textBaseline='top'; g.fillStyle='#e8edf5'; g.fillText(lines[0],bx+8,by+6); g.fillStyle='#56c8ff'; g.fillText(lines[1],bx+8,by+22); g.fillStyle='#7ef0c4'; g.fillText(lines[2],bx+8,by+38); g.fillStyle='#ffd26d'; g.fillText(lines[3],bx+8,by+54);} else updateCursorReadout(null,null,null); }
+  function analyserRMSDb(an){ const data=new Float32Array(an.fftSize); an.getFloatTimeDomainData(data); let sum=0; for(let i=0;i<data.length;i++) sum+=data[i]*data[i]; return gainToDb(Math.sqrt(sum/data.length)); }
+  async function ensureAudio(){ if(ctx) return; ctx=new (window.AudioContext||window.webkitAudioContext)(); nodes.inputBus=ctx.createGain(); nodes.inputBus.gain.value=1; nodes.hpfDryGain=ctx.createGain(); nodes.hpfDryGain.gain.value=1; nodes.hpfWetGain=ctx.createGain(); nodes.hpfWetGain.gain.value=0; nodes.hpf1=ctx.createBiquadFilter(); nodes.hpf1.type='highpass'; nodes.hpf2=ctx.createBiquadFilter(); nodes.hpf2.type='highpass'; nodes.hpf3=ctx.createBiquadFilter(); nodes.hpf3.type='highpass'; nodes.hpf4=ctx.createBiquadFilter(); nodes.hpf4.type='highpass'; nodes.hpfSel12=ctx.createGain(); nodes.hpfSel24=ctx.createGain(); nodes.hpfSel36=ctx.createGain(); nodes.hpfSel48=ctx.createGain(); nodes.hpf1.connect(nodes.hpfSel12); nodes.hpf1.connect(nodes.hpf2); nodes.hpf2.connect(nodes.hpfSel24); nodes.hpf2.connect(nodes.hpf3); nodes.hpf3.connect(nodes.hpfSel36); nodes.hpf3.connect(nodes.hpf4); nodes.hpf4.connect(nodes.hpfSel48); nodes.hpfSel12.connect(nodes.hpfWetGain); nodes.hpfSel24.connect(nodes.hpfWetGain); nodes.hpfSel36.connect(nodes.hpfWetGain); nodes.hpfSel48.connect(nodes.hpfWetGain); nodes.hpfDryGain.connect(nodes.inputBus); nodes.hpfWetGain.connect(nodes.inputBus); nodes.inputAnalyser=ctx.createAnalyser(); nodes.inputAnalyser.fftSize=4096; nodes.inputAnalyser.smoothingTimeConstant=0.80; nodes.inputAnalyser.minDecibels=-100; nodes.inputAnalyser.maxDecibels=0; nodes.lowpass=ctx.createBiquadFilter(); nodes.lowpass.type='lowpass'; nodes.lowpass.frequency.value=FIXED.crossoverHz; nodes.lowpass.Q.value=0.707; nodes.lowGain=ctx.createGain(); nodes.lowGain.gain.value=1; nodes.highpass=ctx.createBiquadFilter(); nodes.highpass.type='highpass'; nodes.highpass.frequency.value=FIXED.crossoverHz; nodes.highpass.Q.value=0.707; nodes.highGain=ctx.createGain(); nodes.highGain.gain.value=1; nodes.wetSum=ctx.createGain(); nodes.wetSum.gain.value=1; nodes.dryGain=ctx.createGain(); nodes.dryGain.gain.value=0; nodes.wetGain=ctx.createGain(); nodes.wetGain.gain.value=1; nodes.mainGain=ctx.createGain(); nodes.mainGain.gain.value=1; nodes.keyGain=ctx.createGain(); nodes.keyGain.gain.value=0; nodes.outputAnalyser=ctx.createAnalyser(); nodes.outputAnalyser.fftSize=4096; nodes.outputAnalyser.smoothingTimeConstant=0.80; nodes.outputAnalyser.minDecibels=-100; nodes.outputAnalyser.maxDecibels=0; nodes.master=ctx.createGain(); nodes.master.gain.value=1; nodes.detHP=ctx.createBiquadFilter(); nodes.detHP.type='highpass'; nodes.detHP.frequency.value=FIXED.detectHPHz; nodes.detHP.Q.value=0.707; nodes.detPeak=ctx.createBiquadFilter(); nodes.detPeak.type='peaking'; nodes.detPeak.frequency.value=FIXED.detectPeakHz; nodes.detPeak.Q.value=FIXED.detectPeakQ; nodes.detPeak.gain.value=FIXED.detectPeakGainDb; nodes.detProc=ctx.createScriptProcessor(1024,2,1); nodes.detNull=ctx.createGain(); nodes.detNull.gain.value=0; nodes.inputBus.connect(nodes.inputAnalyser); nodes.inputBus.connect(nodes.dryGain); nodes.dryGain.connect(nodes.mainGain); nodes.inputBus.connect(nodes.lowpass); nodes.lowpass.connect(nodes.lowGain); nodes.lowGain.connect(nodes.wetSum); nodes.inputBus.connect(nodes.highpass); nodes.highpass.connect(nodes.highGain); nodes.highGain.connect(nodes.wetSum); nodes.wetSum.connect(nodes.wetGain); nodes.wetGain.connect(nodes.mainGain); nodes.inputBus.connect(nodes.detHP); nodes.detHP.connect(nodes.detPeak); nodes.detPeak.connect(nodes.detProc); nodes.detProc.connect(nodes.detNull); nodes.detNull.connect(ctx.destination); nodes.detPeak.connect(nodes.keyGain); nodes.mainGain.connect(nodes.outputAnalyser); nodes.keyGain.connect(nodes.outputAnalyser); nodes.outputAnalyser.connect(nodes.master); nodes.master.connect(ctx.destination); nodes.detProc.onaudioprocess=(ev)=>{ const ib=ev.inputBuffer, ob=ev.outputBuffer; for(let ch=0; ch<ob.numberOfChannels; ch++) ob.getChannelData(ch).fill(0); const channels=Math.min(2,ib.numberOfChannels), len=ib.length; let sum=0; for(let i=0;i<len;i++){ let v=0; for(let ch=0; ch<channels; ch++) v+=ib.getChannelData(ch)[i]; v/=channels; sum+=v*v;} const detDb=gainToDb(Math.sqrt(sum/len)); state.meter.detectorDb=detDb; const p=amountToParams(state.params.amount01), targetGR=state.params.bypass?0:softKneeGR(detDb,p.thresholdDb,p.ratio,p.maxReductionDb,p.kneeDb); const dt=len/ctx.sampleRate, attackSec=p.attackMs/1000, releaseSec=p.releaseMs/1000, attackCoeff=1-Math.exp(-dt/Math.max(attackSec,1e-5)), releaseCoeff=1-Math.exp(-dt/Math.max(releaseSec,1e-5)); if(targetGR>state.meter.reductionDb) state.meter.reductionDb+=attackCoeff*(targetGR-state.meter.reductionDb); else state.meter.reductionDb+=releaseCoeff*(targetGR-state.meter.reductionDb); state.meter.highGainDb=-state.meter.reductionDb; const now=ctx.currentTime; nodes.highGain.gain.cancelScheduledValues(now); nodes.highGain.gain.setTargetAtTime(dbToGain(state.meter.highGainDb),now,0.004); }; syncModeGains(); updateSpectrumSmoothing(); syncHPF(); log(`AudioContext ready: ${ctx.sampleRate} Hz`); }
+  function routeSourceThroughHPF(src){ src.connect(nodes.hpfDryGain); src.connect(nodes.hpf1); }
+  // ============================================================
+  // Stage-10A Upgrade
+  // Legacy Audio operational entry points are now reduced to thin wrappers.
+  // Runtime ownership is centered on AudioEngine.
+  // ============================================================
+
+function syncModeGains(){ if(window.app && app.audioEngine) return app.audioEngine.syncModeGains(); }
+  function cleanupCurrentSource(){ if(window.app && app.audioEngine) return app.audioEngine.cleanupCurrentSource(); }
+  function stopPlaybackInternal(resetOffset){ if(window.app && app.audioEngine) return app.audioEngine.stopInternally(resetOffset); }
+  function pausePlaybackInternal(){ if(window.app && app.audioEngine) return app.audioEngine.pauseInternally(); }
+  function createSourceAndStart(offset=0){ if(window.app && app.audioEngine) return app.audioEngine.createSourceAndStart(offset); }
+  async function playFromStart(){ if(window.app && app.audioEngine) return app.audioEngine.playFromStart(); }
+  async function resumeFromPause(){ if(window.app && app.audioEngine) return app.audioEngine.resumeFromPause(); }
+  function seekTo(norm){ if(window.app && app.audioEngine) return app.audioEngine.seekTo(norm); }
+  function beginSeekDrag(clientX){ if(window.app && app.audioEngine) return app.audioEngine.beginSeekDrag(clientX); }
+  function updateSeekDrag(clientX){ if(window.app && app.audioEngine) return app.audioEngine.updateSeekDrag(clientX); }
+  async function endSeekDrag(){ if(window.app && app.audioEngine) return app.audioEngine.endSeekDrag(); }
+  function setLoopPoint(which){ if(window.app && app.audioEngine) return app.audioEngine.setLoopPoint(which); }
+  const canLoop=()=> state.loop.pointA!=null&&state.loop.pointB!=null&&state.loop.pointB>state.loop.pointA;
+  function resetReduction(){ state.meter.detectorDb=-Infinity; state.meter.reductionDb=0; state.meter.highGainDb=0; state.history.det.fill(-60); state.history.gr.fill(0); state.spectrum.peakPre=null; state.spectrum.peakPost=null; if(ctx&&nodes.highGain){ const now=ctx.currentTime; nodes.highGain.gain.cancelScheduledValues(now); nodes.highGain.gain.setTargetAtTime(1.0,now,0.01);} updateMetersUI(); updateStateUI(); drawHistory(); drawSpectrum(); log('GR / history reset'); }
+  function createTestBuffer(){ const sr=ctx.sampleRate,dur=FIXED.testToneDurationSec,len=Math.floor(sr*dur),buffer=ctx.createBuffer(2,len,sr); for(let ch=0; ch<2; ch++){ const data=buffer.getChannelData(ch); for(let i=0;i<len;i++){ const t=i/sr; const voice=0.16*Math.sin(2*Math.PI*180*t)+0.08*Math.sin(2*Math.PI*540*t)+0.04*Math.sin(2*Math.PI*1080*t); const cycle=0.9,phase=t%cycle; const burstOn=(phase>0.18&&phase<0.30)||(phase>0.55&&phase<0.64); const eventIndex=Math.floor(t/cycle), eventMod=0.7+0.3*Math.sin(eventIndex*1.7); const noise=(Math.random()*2-1), hissEnv=burstOn?eventMod:0; const sib=hissEnv*0.16*noise*(0.75+0.25*Math.sin(2*Math.PI*6.5*t)); const slowAmp=0.92+0.08*Math.sin(2*Math.PI*0.3*t); data[i]=clamp((voice+sib)*slowAmp,-0.92,0.92);} } return buffer; }
+  async function loadFile(file){ await ensureAudio(); if(state.transport.status==='playing'||state.transport.status==='paused') stopPlaybackInternal(true); const arrayBuffer=await file.arrayBuffer(); const decoded=await ctx.decodeAudioData(arrayBuffer.slice(0)); state.transport.audioBuffer=decoded; state.transport.loaded=true; state.transport.loadedName=file.name; state.transport.status='stopped'; state.transport.offsetSec=0; state.loop.pointA=null; state.loop.pointB=null; state.loop.enabled=false; updateStateUI(); resetReduction(); log(`ファイル読込: ${file.name} / ${decoded.numberOfChannels}ch / ${decoded.sampleRate}Hz / ${decoded.duration.toFixed(2)}s`); }
+
+  // -------- Export WAV (Processed only) --------
+  function createBiquadHP(type,freq,Q,sr){
+    const w0=2*Math.PI*freq/sr, cw=Math.cos(w0), sw=Math.sin(w0), alpha=sw/(2*Q); let b0,b1,b2,a0,a1,a2;
+    if(type==='highpass'){ b0=(1+cw)/2; b1=-(1+cw); b2=(1+cw)/2; a0=1+alpha; a1=-2*cw; a2=1-alpha; }
+    else if(type==='lowpass'){ b0=(1-cw)/2; b1=1-cw; b2=(1-cw)/2; a0=1+alpha; a1=-2*cw; a2=1-alpha; }
+    else { throw new Error('unsupported biquad'); }
+    return {b0:b0/a0,b1:b1/a0,b2:b2/a0,a1:a1/a0,a2:a2/a0,z1:0,z2:0};
+  }
+  function createBiquadPeaking(freq,Q,gainDb,sr){
+    const A=Math.pow(10,gainDb/40), w0=2*Math.PI*freq/sr, cw=Math.cos(w0), sw=Math.sin(w0), alpha=sw/(2*Q);
+    const b0=1+alpha*A, b1=-2*cw, b2=1-alpha*A, a0=1+alpha/A, a1=-2*cw, a2=1-alpha/A;
+    return {b0:b0/a0,b1:b1/a0,b2:b2/a0,a1:a1/a0,a2:a2/a0,z1:0,z2:0};
+  }
+  function processIIRInPlace(data, filt){
+    let z1=filt.z1, z2=filt.z2, b0=filt.b0,b1=filt.b1,b2=filt.b2,a1=filt.a1,a2=filt.a2;
+    for(let i=0;i<data.length;i++){
+      const x=data[i];
+      const y=b0*x + z1;
+      z1=b1*x - a1*y + z2;
+      z2=b2*x - a2*y;
+      data[i]=y;
+    }
+    filt.z1=z1; filt.z2=z2;
+  }
+  function processIIRCopy(src, filt){ const out=new Float32Array(src); processIIRInPlace(out,filt); return out; }
+  function copyChannelsFromAudioBuffer(buf){ const ch=[]; for(let c=0;c<buf.numberOfChannels;c++) ch.push(new Float32Array(buf.getChannelData(c))); return ch; }
+  function sumChannelsAvg(channels){ const len=channels[0].length; const out=new Float32Array(len); const n=channels.length; for(let i=0;i<len;i++){ let s=0; for(let c=0;c<n;c++) s += channels[c][i]; out[i]=s/n; } return out; }
+  function int16ToWavBlob(channels,sampleRate){ if(window.app && app.exportEngine) return app.exportEngine.int16ToWavBlob(channels,sampleRate); }
+  function processExportBuffer(audioBuffer){ if(window.app && app.exportEngine) return app.exportEngine.processExportBuffer(audioBuffer); }
+  async function exportProcessedWav(){ if(window.app && app.exportEngine) return app.exportEngine.exportProcessedWav(); }
+
+  function animationLoop(){ if(ctx){ state.meter.inDb=analyserRMSDb(nodes.inputAnalyser); state.meter.outDb=analyserRMSDb(nodes.outputAnalyser); updateMetersUI(); updateStateUI(); if(state.loop.enabled&&canLoop()&&state.transport.status==='playing'){ const pos=getCurrentPositionSec(); if(pos>=state.loop.pointB-0.005){ createSourceAndStart(state.loop.pointA); log(`Loop: ${formatTime(state.loop.pointA)} に戻る`); } } state.history.tick++; if(state.history.tick>=3){ state.history.tick=0; pushHistory(state.history.det,isFinite(state.meter.detectorDb)?state.meter.detectorDb:-60); pushHistory(state.history.gr,state.meter.reductionDb); drawHistory(); } drawSpectrum(); } else { drawHistory(); drawSpectrum(); } state.runtime.rafId=requestAnimationFrame(animationLoop); }
+
+  
+  // ============================================================
+  // Stage-13 Upgrade
+  // Wrapper deletion readiness metadata is added to support future physical removal.
+  // No runtime behavior change is intended in this stage.
+  // ============================================================
+
+  const LEGACY_WRAPPER_OWNER_MAP = Object.freeze({
+    bindSpectrumEvents:'eventBinder', bindSeekEvents:'eventBinder', bindToggleEvents:'eventBinder', bindLoopEvents:'eventBinder', bindHpfEvents:'eventBinder',
+    bindBackendEvents:'eventBinder', bindFileAndTestToneEvents:'eventBinder', bindPlaybackEvents:'eventBinder', bindKeyboardEvents:'eventBinder',
+    bindLifecycleEvents:'eventBinder', bindEvents:'eventBinder',
+    updateParamUI:'uiRenderer', updateHpfUI:'uiRenderer', updateExportUI:'uiRenderer', updateCursorReadout:'uiRenderer', updateSpectrumSmoothing:'uiRenderer',
+    updateToggleStyles:'uiRenderer', updateLoopMarkers:'uiRenderer', updateStateUI:'uiRenderer', updateMetersUI:'uiRenderer',
+    syncModeGains:'audioEngine', cleanupCurrentSource:'audioEngine', stopPlaybackInternal:'audioEngine', pausePlaybackInternal:'audioEngine',
+    createSourceAndStart:'audioEngine', playFromStart:'audioEngine', resumeFromPause:'audioEngine', seekTo:'audioEngine', beginSeekDrag:'audioEngine',
+    updateSeekDrag:'audioEngine', endSeekDrag:'audioEngine', setLoopPoint:'audioEngine',
+    renderDetectorBackendUI:'detectorBackendManager', setDetectorBackendStatus:'detectorBackendManager', applyDetectorRms:'detectorBackendManager',
+    cleanupDetectorBackend:'detectorBackendManager', installScriptProcessorDetector:'detectorBackendManager', installPreferredDetectorBackend:'detectorBackendManager',
+    int16ToWavBlob:'exportEngine', processExportBuffer:'exportEngine', exportProcessedWav:'exportEngine'
+  });
+
+  function getLegacyWrapperDeletionPlan(){
+    return {
+      groups: LEGACY_WRAPPER_ONLY_SURFACES,
+      owners: LEGACY_WRAPPER_OWNER_MAP
+    };
+  }
+
+  function validateLegacyWrapperReadiness(){
+    const groups = LEGACY_WRAPPER_ONLY_SURFACES;
+    const owners = LEGACY_WRAPPER_OWNER_MAP;
+    const problems = [];
+    const ownerMap = { eventBinder:app?.eventBinder, uiRenderer:app?.uiRenderer, audioEngine:app?.audioEngine, detectorBackendManager:app?.detectorBackendManager, exportEngine:app?.exportEngine };
+    Object.values(groups).forEach(list=>{
+      list.forEach(name=>{
+        if(typeof window[name] !== 'function') problems.push(`missing wrapper: ${name}`);
+        const ownerKey = owners[name];
+        if(!ownerKey) problems.push(`missing owner key: ${name}`);
+        else if(!ownerMap[ownerKey]) problems.push(`missing owner instance: ${name} -> ${ownerKey}`);
+      });
+    });
+    return { ok: problems.length===0, problems };
+  }
+
+// ============================================================
+  // Stage-12 Upgrade
+  // Wrapper-only compatibility functions are now explicitly inventoried for future removal.
+  // No runtime behavior change is intended in this stage.
+  // ============================================================
+
+  const LEGACY_WRAPPER_ONLY_SURFACES = Object.freeze({
+    event: Object.freeze([
+      'bindSpectrumEvents','bindSeekEvents','bindToggleEvents','bindLoopEvents','bindHpfEvents',
+      'bindBackendEvents','bindFileAndTestToneEvents','bindPlaybackEvents','bindKeyboardEvents',
+      'bindLifecycleEvents','bindEvents'
+    ]),
+    ui: Object.freeze([
+      'updateParamUI','updateHpfUI','updateExportUI','updateCursorReadout','updateSpectrumSmoothing',
+      'updateToggleStyles','updateLoopMarkers','updateStateUI','updateMetersUI'
+    ]),
+    audio: Object.freeze([
+      'syncModeGains','cleanupCurrentSource','stopPlaybackInternal','pausePlaybackInternal',
+      'createSourceAndStart','playFromStart','resumeFromPause','seekTo','beginSeekDrag',
+      'updateSeekDrag','endSeekDrag','setLoopPoint'
+    ]),
+    detector: Object.freeze([
+      'renderDetectorBackendUI','setDetectorBackendStatus','applyDetectorRms','cleanupDetectorBackend',
+      'installScriptProcessorDetector','installPreferredDetectorBackend'
+    ]),
+    export: Object.freeze([
+      'int16ToWavBlob','processExportBuffer','exportProcessedWav'
+    ])
+  });
+
+// ============================================================
+  // Stage-14 Upgrade
+  // Physical deletion batches are now defined for the wrapper-only compatibility surface.
+  // This Stage-14e edition restores the Stage-14 metadata using the working Stage-13 base.
+  // ============================================================
+
+  const LEGACY_WRAPPER_REMOVAL_BATCHES = Object.freeze([
+    Object.freeze({ id:'batch-1-event', owner:'eventBinder', wrappers:Object.freeze(LEGACY_WRAPPER_ONLY_SURFACES.event.slice()) }),
+    Object.freeze({ id:'batch-2-ui', owner:'uiRenderer', wrappers:Object.freeze(LEGACY_WRAPPER_ONLY_SURFACES.ui.slice()) }),
+    Object.freeze({ id:'batch-3-audio', owner:'audioEngine', wrappers:Object.freeze(LEGACY_WRAPPER_ONLY_SURFACES.audio.slice()) }),
+    Object.freeze({ id:'batch-4-detector', owner:'detectorBackendManager', wrappers:Object.freeze(LEGACY_WRAPPER_ONLY_SURFACES.detector.slice()) }),
+    Object.freeze({ id:'batch-5-export', owner:'exportEngine', wrappers:Object.freeze(LEGACY_WRAPPER_ONLY_SURFACES.export.slice()) })
+  ]);
+
+  function getLegacyWrapperRemovalBatches(){
+    return LEGACY_WRAPPER_REMOVAL_BATCHES;
+  }
+
+  function validateLegacyWrapperRemovalBatches(){
+    const problems = [];
+    const groups = LEGACY_WRAPPER_ONLY_SURFACES;
+    const owners = LEGACY_WRAPPER_OWNER_MAP;
+    const known = new Set();
+    Object.values(groups).forEach(list=>list.forEach(name=>known.add(name)));
+    LEGACY_WRAPPER_REMOVAL_BATCHES.forEach(batch=>{
+      if(!batch.id) problems.push('missing batch id');
+      if(!batch.owner) problems.push('missing batch owner: ' + (batch.id || 'unknown'));
+      if(!Array.isArray(batch.wrappers)) problems.push('wrappers is not array: ' + (batch.id || 'unknown'));
+      else {
+        batch.wrappers.forEach(name=>{
+          if(!known.has(name)) problems.push('unknown wrapper in batch ' + batch.id + ': ' + name);
+          if(owners[name] !== batch.owner) problems.push('owner mismatch in batch ' + batch.id + ': ' + name + ' -> ' + owners[name] + ' !== ' + batch.owner);
+        });
+      }
+    });
+    return { ok: problems.length===0, problems };
+  }
+
+
+// ============================================================
+  // Stage-11 Upgrade
+  // Legacy compatibility surface is now wrapper-only across Event / UI / Audio / Detector / Export.
+  // Remaining legacy functions are deletion candidates after validation; behavior is intentionally unchanged.
+  // ============================================================
+
+// ============================================================
+  // Stage-8 Upgrade
+  // Legacy event-binding bodies are now reduced to thin wrappers.
+  // AppController / EventBinder own the real listener implementations.
+  // ============================================================
+
+  function bindSpectrumEvents(){ if(window.app && app.eventBinder) return app.eventBinder.bindSpectrumEvents(); }
+  function bindSeekEvents(){ if(window.app && app.eventBinder) return app.eventBinder.bindSeekEvents(); }
+  function bindToggleEvents(){ if(window.app && app.eventBinder) return app.eventBinder.bindToggleEvents(); }
+  function bindLoopEvents(){ if(window.app && app.eventBinder) return app.eventBinder.bindLoopEvents(); }
+  function bindHpfEvents(){ if(window.app && app.eventBinder) return app.eventBinder.bindHpfEvents(); }
+  function bindBackendEvents(){ if(window.app && app.eventBinder) return app.eventBinder.bindBackendEvents(); }
+  function bindFileAndTestToneEvents(){ if(window.app && app.eventBinder) return app.eventBinder.bindFileAndTestToneEvents(); }
+  function bindPlaybackEvents(){ if(window.app && app.eventBinder) return app.eventBinder.bindPlaybackEvents(); }
+  function bindKeyboardEvents(){ if(window.app && app.eventBinder) return app.eventBinder.bindKeyboardEvents(); }
+  function bindLifecycleEvents(){ if(window.app && app.eventBinder) return app.eventBinder.bindLifecycleEvents(); }
+  function bindEvents(){ if(window.app && app.eventBinder) return app.eventBinder.bindAll(); }
+
+// ============================================================
+  // Stage-3 Classes (working-first)
+  // Real method bodies: UIRenderer / AudioEngine / EventBinder / DetectorBackendManager.
+  // Legacy global functions are intentionally kept for fallback / diff.
+  // ============================================================
+
+  class Logger {
+    append(message){ log(message); }
+  }
+
+  class UIRenderer {
+    renderAmountControl(){
+      const v=Number(ui.amount.value);
+      state.params.amount01=v/100;
+      ui.amountValue.textContent=`${v}%`;
+      const p=amountToParams(state.params.amount01);
+      ui.readThreshold.textContent=`${p.thresholdDb.toFixed(1)} dB`;
+      ui.readRatio.textContent=`${p.ratio.toFixed(1)} : 1`;
+      ui.readMaxGR.textContent=`${p.maxReductionDb.toFixed(1)} dB`;
+      setBar(ui.barThreshold,((p.thresholdDb+42)/24)*100);
+      setBar(ui.barRatio,((p.ratio-1.5)/6.5)*100);
+      setBar(ui.barMaxGR,(p.maxReductionDb/FIXED.maxReductionCeilDb)*100);
+    }
+
+    renderHpfControl(){
+      state.params.hpfFreq=Number(ui.hpfFreq.value);
+      state.params.hpfSlope=Number(ui.hpfSlope.value);
+      ui.hpfFreqText.textContent=`${state.params.hpfFreq} Hz`;
+      ui.hpfSlopeText.textContent=`-${state.params.hpfSlope} dB/oct`;
+      ui.btnHpf.textContent=state.params.hpfOn?'ON':'OFF';
+      ui.btnHpf.classList.toggle('active',state.params.hpfOn);
+      syncHPF();
+    }
+
+    renderExportState(text){
+      ui.exportStatus.textContent=text;
+      ui.btnExportWav.disabled=state.exportState.isExporting || !state.transport.audioBuffer;
+    }
+
+    renderSpectrumCursor(freq,preDb,postDb){
+      ui.cursorFreq.textContent=freq==null?'--':formatFreq(freq);
+      ui.cursorPre.textContent=preDb==null?'--':`${clampSpectrumDb(preDb).toFixed(1)} dB`;
+      ui.cursorPost.textContent=postDb==null?'--':`${clampSpectrumDb(postDb).toFixed(1)} dB`;
+      ui.cursorMode.textContent=state.spectrum.cursorLocked?'LOCK':'UNLOCK';
+    }
+
+    applySpectrumSmoothing(){
+      const v=clamp(Number(ui.specSmooth.value||80)/100,0,0.95);
+      ui.specSmoothText.textContent=v.toFixed(2);
+      if(nodes.inputAnalyser) nodes.inputAnalyser.smoothingTimeConstant=v;
+      if(nodes.outputAnalyser) nodes.outputAnalyser.smoothingTimeConstant=v;
+    }
+
+    updateToggleStyles(){
+      ui.togglePre.classList.toggle('active',state.spectrum.showPre);
+      ui.togglePost.classList.toggle('active',state.spectrum.showPost);
+      ui.togglePeak.classList.toggle('active',state.spectrum.showPeak);
+      ui.btnLoop.classList.toggle('active',state.loop.enabled);
+      ui.loopState.textContent=state.loop.enabled?'ON':'OFF';
+      ui.loopAText.textContent=state.loop.pointA==null?'--':formatTime(state.loop.pointA);
+      ui.loopBText.textContent=state.loop.pointB==null?'--':formatTime(state.loop.pointB);
+    }
+
+    updateLoopMarkers(){
+      const dur=getDurationSec(), showA=dur>0&&state.loop.pointA!=null, showB=dur>0&&state.loop.pointB!=null;
+      ui.loopAMarker.style.display=showA?'block':'none';
+      ui.loopBMarker.style.display=showB?'block':'none';
+      if(showA) ui.loopAMarker.style.left=`${(state.loop.pointA/dur)*100}%`;
+      if(showB) ui.loopBMarker.style.left=`${(state.loop.pointB/dur)*100}%`;
+    }
+
+    renderTransportState(){
+      const pos=getCurrentPositionSec(), dur=getDurationSec();
+      ui.stateText.textContent=state.transport.status.charAt(0).toUpperCase()+state.transport.status.slice(1);
+      ui.loadedText.textContent=state.transport.loaded?(state.transport.loadedName||'Yes'):'No';
+      ui.reductionText.textContent=state.meter.reductionDb.toFixed(1);
+      ui.highGainText.textContent=state.meter.highGainDb.toFixed(1);
+      ui.btnBypass.classList.toggle('active',state.params.bypass);
+      ui.btnKeyListen.classList.toggle('active',state.params.keyListen);
+      ui.positionText.textContent=formatTime(pos);
+      ui.durationText.textContent=formatTime(dur);
+      ui.positionHeadText.textContent=`${formatTime(pos)} / ${formatTime(dur)}`;
+      setBar(ui.positionFill,dur>0?(pos/dur)*100:0);
+      ui.positionThumb.style.left=`${dur>0?(pos/dur)*100:0}%`;
+      ui.specPlaybackTime.textContent=formatTime(pos);
+      this.updateLoopMarkers();
+      this.updateToggleStyles();
+      this.renderExportState(state.exportState.isExporting?'Exporting...':'Processed');
+      if(window.app && app.detectorBackendManager){ app.detectorBackendManager.renderBackendUI(); }
+      else { renderDetectorBackendUI(); }
+    }
+
+    renderMeterState(){
+      setBar(ui.inFill,pctFromDb(state.meter.inDb,-60,0));
+      setBar(ui.outFill,pctFromDb(state.meter.outDb,-60,0));
+      setBar(ui.detFill,pctFromDb(state.meter.detectorDb,-60,0));
+      setBar(ui.grFill,(state.meter.reductionDb/FIXED.maxReductionCeilDb)*100);
+      ui.inText.textContent=`${safeDbText(state.meter.inDb)} dBFS`;
+      ui.outText.textContent=`${safeDbText(state.meter.outDb)} dBFS`;
+      ui.detText.textContent=`${safeDbText(state.meter.detectorDb)} dB`;
+      ui.grText.textContent=`${state.meter.reductionDb.toFixed(1)} dB`;
+    }
+
+    drawSpectrum(){ drawSpectrum(); }
+    drawHistory(){ drawHistory(); }
+  }
+
+
+class AudioGraphBuilder {
+  constructor(){
+    this.lastStage='idle';
+  }
+
+  createContextIfNeeded(){
+    this.lastStage='context';
+    if(!ctx) ensureAudio();
+    return ctx;
+  }
+
+  buildNodes(){
+    this.lastStage='nodes';
+    return nodes;
+  }
+
+  connectNodes(){
+    this.lastStage='connect';
+    return nodes;
+  }
+
+  installDetectorFallbackProcessor(){
+    this.lastStage='detector-fallback';
+    return nodes.detProc;
+  }
+
+  applyInitialRuntimeState(){
+    this.lastStage='finalize';
+    return true;
+  }
+}
+
+
+class AudioEngine {
+  constructor(graphBuilder=null){
+    this.graphBuilder=graphBuilder;
+  }
+
+  setGraphBuilder(graphBuilder){
+    this.graphBuilder=graphBuilder;
+  }
+
+  async ensureReady(){
+    await ensureAudio();
+    if(this.graphBuilder) this.graphBuilder.lastStage='finalize';
+  }
+
+  syncModeGains(){
+    const now=ctx.currentTime, dry=state.params.bypass?1:0, wet=state.params.bypass?0:1, main=state.params.keyListen?0:1, key=state.params.keyListen?1:0;
+    nodes.dryGain.gain.cancelScheduledValues(now);
+    nodes.wetGain.gain.cancelScheduledValues(now);
+    nodes.mainGain.gain.cancelScheduledValues(now);
+    nodes.keyGain.gain.cancelScheduledValues(now);
+    nodes.dryGain.gain.setTargetAtTime(dry,now,0.01);
+    nodes.wetGain.gain.setTargetAtTime(wet,now,0.01);
+    nodes.mainGain.gain.setTargetAtTime(main,now,0.01);
+    nodes.keyGain.gain.setTargetAtTime(key,now,0.01);
+  }
+
+  cleanupCurrentSource(){
+    if(state.transport.source){
+      const s=state.transport.source;
+      state.transport.source=null;
+      try{s.onended=null;}catch(e){}
+      try{s.stop(0);}catch(e){}
+      try{s.disconnect();}catch(e){}
+    }
+  }
+
+  stopInternally(resetOffset){
+    this.cleanupCurrentSource();
+    state.transport.status='stopped';
+    if(resetOffset) state.transport.offsetSec=0;
+    if(window.app) app.uiRenderer.renderTransportState();
+  }
+
+  pauseInternally(){
+    if(!ctx||!state.transport.source||state.transport.status!=='playing') return;
+    state.transport.offsetSec=getCurrentPositionSec();
+    this.cleanupCurrentSource();
+    state.transport.status='paused';
+    if(window.app) app.uiRenderer.renderTransportState();
+  }
+
+  createSourceAndStart(offset=0){
+    if(!ctx||!state.transport.audioBuffer) return;
+    this.cleanupCurrentSource();
+    const srcNode=ctx.createBufferSource();
+    srcNode.buffer=state.transport.audioBuffer;
+    srcNode.loop=false;
+    routeSourceThroughHPF(srcNode);
+    state.transport.source=srcNode;
+    state.transport.startedAt=ctx.currentTime-offset;
+    state.transport.offsetSec=offset;
+    state.transport.status='playing';
+    srcNode.onended=()=>{
+      if(state.transport.source!==srcNode) return;
+      this.cleanupCurrentSource();
+      state.transport.status='stopped';
+      state.transport.offsetSec=0;
+      resetReduction();
+      if(window.app) app.uiRenderer.renderTransportState();
+    };
+    srcNode.start(0,offset);
+    if(window.app) app.uiRenderer.renderTransportState();
+  }
+
+  async playFromStart(){
+    await this.ensureReady();
+    if(!state.transport.audioBuffer){ log('音声ファイルまたはテストトーンを用意してください'); return; }
+    await ctx.resume();
+    this.createSourceAndStart(0);
+    resetReduction();
+    log('再生開始');
+  }
+
+  async resumeFromPause(){
+    await this.ensureReady();
+    if(!state.transport.audioBuffer) return;
+    await ctx.resume();
+    this.createSourceAndStart(state.transport.offsetSec||0);
+    log(`再開: ${formatTime(state.transport.offsetSec)}`);
+  }
+
+  seekTo(normalized){
+    const dur=getDurationSec();
+    if(!dur) return;
+    const targetSec=clamp(normalized,0,1)*dur;
+    const wasPlaying=state.transport.status==='playing';
+    if(wasPlaying){ this.createSourceAndStart(targetSec); }
+    else { state.transport.offsetSec=targetSec; if(window.app) app.uiRenderer.renderTransportState(); }
+  }
+
+  beginSeekDrag(clientX){
+    const dur=getDurationSec();
+    if(!dur) return;
+    state.seek.dragging=true;
+    state.seek.wasPlaying=state.transport.status==='playing';
+    if(state.seek.wasPlaying) this.pauseInternally();
+    this.updateSeekDrag(clientX);
+  }
+
+  updateSeekDrag(clientX){
+    const rect=ui.positionBar.getBoundingClientRect();
+    const ratio=clamp((clientX-rect.left)/rect.width,0,1);
+    state.seek.previewSec=ratio*getDurationSec();
+    if(window.app) app.uiRenderer.renderTransportState();
+  }
+
+  async endSeekDrag(){
+    if(!state.seek.dragging) return;
+    state.seek.dragging=false;
+    state.transport.offsetSec=state.seek.previewSec;
+    const resume=state.seek.wasPlaying;
+    state.seek.wasPlaying=false;
+    if(resume) await this.resumeFromPause();
+    else if(window.app) app.uiRenderer.renderTransportState();
+  }
+
+  setLoopPoint(which){
+    const pos=getCurrentPositionSec();
+    if(which==='A'){
+      state.loop.pointA=pos;
+      if(state.loop.pointB!=null&&state.loop.pointB<=state.loop.pointA) state.loop.pointB=Math.min(getDurationSec(),state.loop.pointA+0.5);
+      log(`Loop A = ${formatTime(state.loop.pointA)}`);
+    } else {
+      state.loop.pointB=pos;
+      if(state.loop.pointA!=null&&state.loop.pointB<=state.loop.pointA) state.loop.pointA=Math.max(0,state.loop.pointB-0.5);
+      log(`Loop B = ${formatTime(state.loop.pointB)}`);
+    }
+    if(window.app) app.uiRenderer.renderTransportState();
+  }
+}
+
+
+  class DetectorBackendManagerStage3 {
+    renderBackendUI(){
+      if(!ui.detectorBackendText) return;
+      ui.detectorBackendText.textContent=state.detector.backend;
+      ui.detectorPolicyText.textContent=state.detector.forceScriptProcessor?'Force ScriptProcessor':'Auto';
+      ui.btnForceFallback.textContent=state.detector.forceScriptProcessor?'FORCED':'AUTO';
+      ui.btnForceFallback.classList.toggle('active',state.detector.forceScriptProcessor);
+    }
+
+    setStatus(name,detail=''){
+      state.detector.backend=name;
+      state.detector.detail=detail;
+      this.renderBackendUI();
+    }
+
+    applyDetectorRms(rms,frameCount){
+      const detectorLevelDb=gainToDb(rms);
+      state.meter.detectorDb=detectorLevelDb;
+      const p=amountToParams(state.params.amount01);
+      const targetReductionDb=state.params.bypass?0:softKneeGR(detectorLevelDb,p.thresholdDb,p.ratio,p.maxReductionDb,p.kneeDb);
+      const dt=frameCount/ctx.sampleRate;
+      const attackSec=p.attackMs/1000;
+      const releaseSec=p.releaseMs/1000;
+      const attackCoeff=1-Math.exp(-dt/Math.max(attackSec,1e-5));
+      const releaseCoeff=1-Math.exp(-dt/Math.max(releaseSec,1e-5));
+      if(targetReductionDb>state.meter.reductionDb) state.meter.reductionDb+=attackCoeff*(targetReductionDb-state.meter.reductionDb);
+      else state.meter.reductionDb+=releaseCoeff*(targetReductionDb-state.meter.reductionDb);
+      state.meter.highGainDb=-state.meter.reductionDb;
+      const now=ctx.currentTime;
+      nodes.highGain.gain.cancelScheduledValues(now);
+      nodes.highGain.gain.setTargetAtTime(dbToGain(state.meter.highGainDb),now,0.004);
+    }
+
+    cleanup(){
+      if(nodes.detProc) nodes.detProc.onaudioprocess=null;
+      if(nodes.detPeak&&nodes.detProc){ try{ nodes.detPeak.disconnect(nodes.detProc); }catch(e){} }
+      if(nodes.detProc&&nodes.detNull){ try{ nodes.detProc.disconnect(nodes.detNull); }catch(e){} }
+      if(detectorWorkletNode){
+        try{ detectorWorkletNode.port.onmessage=null; }catch(e){}
+        try{ if(nodes.detPeak) nodes.detPeak.disconnect(detectorWorkletNode); }catch(e){}
+        try{ detectorWorkletNode.disconnect(); }catch(e){}
+        detectorWorkletNode=null;
+      }
+      if(detectorWorkletUrl){ try{ URL.revokeObjectURL(detectorWorkletUrl); }catch(e){} detectorWorkletUrl=null; }
+    }
+
+    installScriptProcessorBackend(detail){
+      this.cleanup();
+      try{ nodes.detPeak.connect(nodes.detProc); }catch(e){}
+      try{ nodes.detProc.connect(nodes.detNull); }catch(e){}
+      nodes.detProc.onaudioprocess=(ev)=>{
+        const ib=ev.inputBuffer, ob=ev.outputBuffer;
+        for(let ch=0; ch<ob.numberOfChannels; ch++) ob.getChannelData(ch).fill(0);
+        const channels=Math.min(2,ib.numberOfChannels), len=ib.length;
+        let sum=0;
+        for(let i=0;i<len;i++){
+          let v=0;
+          for(let ch=0; ch<channels; ch++) v+=ib.getChannelData(ch)[i];
+          v/=channels;
+          sum+=v*v;
+        }
+        this.applyDetectorRms(Math.sqrt(sum/len),len);
+      };
+      this.setStatus(detail==='forced'?'ScriptProcessor (forced)':(detail==='fallback'?'ScriptProcessor (fallback)':'ScriptProcessor'));
+    }
+
+    async installPreferredBackend(){
+      if(!ctx||!nodes.detPeak||!nodes.detNull||!nodes.detProc){
+        this.setStatus('Uninitialized');
+        return;
+      }
+      if(state.detector.forceScriptProcessor){
+        this.installScriptProcessorBackend('forced');
+        app.logger.append('Detector: ScriptProcessor を強制使用');
+        return;
+      }
+      if(ctx.audioWorklet && typeof AudioWorkletNode!=='undefined'){
+        try{
+          this.cleanup();
+          const workletCode=`class DetectorMeterProcessor extends AudioWorkletProcessor{process(inputs,outputs){const input=inputs[0];const output=outputs[0]; if(output){ for(let ch=0; ch<output.length; ch++) output[ch].fill(0);} if(!input||input.length===0||input[0].length===0) return true; const channels=Math.min(2,input.length), len=input[0].length; let sum=0; for(let i=0;i<len;i++){ let v=0; for(let ch=0; ch<channels; ch++) v+=input[ch][i]; v/=channels; sum+=v*v; } this.port.postMessage({rms:Math.sqrt(sum/len), frameCount:len}); return true; }} registerProcessor('detector-meter-processor', DetectorMeterProcessor);`;
+          detectorWorkletUrl=URL.createObjectURL(new Blob([workletCode],{type:'application/javascript'}));
+          await ctx.audioWorklet.addModule(detectorWorkletUrl);
+          detectorWorkletNode=new AudioWorkletNode(ctx,'detector-meter-processor',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});
+          detectorWorkletNode.port.onmessage=(ev)=>{
+            const data=ev.data||{};
+            this.applyDetectorRms(Number(data.rms||0), Number(data.frameCount||128));
+          };
+          nodes.detPeak.connect(detectorWorkletNode);
+          detectorWorkletNode.connect(nodes.detNull);
+          this.setStatus('AudioWorklet');
+          app.logger.append('Detector: AudioWorklet を使用');
+          return;
+        }catch(err){
+          app.logger.append(`Detector: AudioWorklet 利用不可のため ScriptProcessor へフォールバック (${err.message||err})`);
+          this.installScriptProcessorBackend('fallback');
+          return;
+        }
+      }
+      this.installScriptProcessorBackend('active');
+      app.logger.append('Detector: ScriptProcessor を使用');
+    }
+  }
+
+  // ============================================================
+  // Stage-4 Upgrade
+  // ExportEngine method bodies moved in carefully.
+  // Legacy export functions are kept for fallback / diff.
+  // ============================================================
+
+  class ExportEngine {
+    int16ToWavBlob(channels,sampleRate){
+      const numChannels=channels.length, numFrames=channels[0].length, blockAlign=numChannels*2, byteRate=sampleRate*blockAlign, dataBytes=numFrames*blockAlign;
+      const buffer=new ArrayBuffer(44+dataBytes);
+      const view=new DataView(buffer);
+      const writeStr=(o,s)=>{ for(let i=0;i<s.length;i++) view.setUint8(o+i,s.charCodeAt(i)); };
+      writeStr(0,'RIFF'); view.setUint32(4,36+dataBytes,true); writeStr(8,'WAVE'); writeStr(12,'fmt ');
+      view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,numChannels,true); view.setUint32(24,sampleRate,true);
+      view.setUint32(28,byteRate,true); view.setUint16(32,blockAlign,true); view.setUint16(34,16,true); writeStr(36,'data'); view.setUint32(40,dataBytes,true);
+      let o=44;
+      for(let i=0;i<numFrames;i++){
+        for(let c=0;c<numChannels;c++){
+          let s=channels[c][i];
+          s=Math.max(-1,Math.min(1,s));
+          view.setInt16(o, s<0 ? s*32768 : s*32767, true);
+          o += 2;
+        }
+      }
+      return new Blob([buffer],{type:'audio/wav'});
+    }
+
+    processExportBuffer(audioBuffer){
+      const sr=audioBuffer.sampleRate, nCh=audioBuffer.numberOfChannels, len=audioBuffer.length;
+      let x=copyChannelsFromAudioBuffer(audioBuffer);
+      if(state.params.hpfOn){
+        const stages=state.params.hpfSlope/12;
+        for(let c=0;c<nCh;c++){
+          let data=x[c];
+          for(let s=0;s<stages;s++) processIIRInPlace(data, createBiquadHP('highpass', state.params.hpfFreq, 0.707, sr));
+        }
+      }
+      const low=[], high=[], out=[];
+      for(let c=0;c<nCh;c++){
+        low[c]=processIIRCopy(x[c], createBiquadHP('lowpass', FIXED.crossoverHz, 0.707, sr));
+        high[c]=processIIRCopy(x[c], createBiquadHP('highpass', FIXED.crossoverHz, 0.707, sr));
+        out[c]=new Float32Array(len);
+      }
+      let det=sumChannelsAvg(x);
+      processIIRInPlace(det, createBiquadHP('highpass', FIXED.detectHPHz, 0.707, sr));
+      processIIRInPlace(det, createBiquadPeaking(FIXED.detectPeakHz, FIXED.detectPeakQ, FIXED.detectPeakGainDb, sr));
+      const p=amountToParams(state.params.amount01), block=1024; let gr=0;
+      for(let i=0;i<len;i+=block){
+        const end=Math.min(len,i+block);
+        let sum=0;
+        for(let k=i;k<end;k++) sum += det[k]*det[k];
+        const detDb=gainToDb(Math.sqrt(sum/(end-i)));
+        const targetGR=softKneeGR(detDb,p.thresholdDb,p.ratio,p.maxReductionDb,p.kneeDb);
+        const dt=(end-i)/sr, attackSec=p.attackMs/1000, releaseSec=p.releaseMs/1000;
+        const attackCoeff=1-Math.exp(-dt/Math.max(attackSec,1e-5)), releaseCoeff=1-Math.exp(-dt/Math.max(releaseSec,1e-5));
+        gr += (targetGR>gr ? attackCoeff : releaseCoeff) * (targetGR-gr);
+        const g=dbToGain(-gr);
+        for(let c=0;c<nCh;c++){
+          const lo=low[c], hi=high[c], o=out[c];
+          for(let k=i;k<end;k++) o[k] = clamp(lo[k] + hi[k]*g, -1, 1);
+        }
+      }
+      return out;
+    }
+
+    async exportProcessedWav(){
+      if(!state.transport.audioBuffer || state.exportState.isExporting) return;
+      state.exportState.isExporting=true;
+      if(window.app&&app.uiRenderer) app.uiRenderer.renderTransportState(); else updateStateUI();
+      log('Export WAV 開始');
+      try{
+        await new Promise(r=>setTimeout(r,30));
+        const processed=this.processExportBuffer(state.transport.audioBuffer);
+        const blob=this.int16ToWavBlob(processed,state.transport.audioBuffer.sampleRate);
+        const a=document.createElement('a');
+        const base=(state.transport.loadedName||'export').replace(/\.[^.]+$/,'');
+        a.href=URL.createObjectURL(blob);
+        a.download=`${base}_processed.wav`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+        log('Export WAV 完了');
+      }catch(err){
+        log(`Export失敗: ${err.message||err}`);
+      }finally{
+        state.exportState.isExporting=false;
+        if(window.app&&app.uiRenderer) app.uiRenderer.renderTransportState(); else updateStateUI();
+      }
+    }
+  }
+
+  class EventBinder {
+    constructor(appRef){ this.app=appRef; }
+
+    bindSpectrumEvents(){
+      ui.spectrumCanvas.addEventListener('mousemove',(e)=>{
+        if(state.spectrum.cursorLocked) return;
+        const rect=ui.spectrumCanvas.getBoundingClientRect();
+        state.spectrum.cursorActive=true;
+        state.spectrum.cursorX=e.clientX-rect.left;
+      });
+      ui.spectrumCanvas.addEventListener('click',(e)=>{
+        const rect=ui.spectrumCanvas.getBoundingClientRect();
+        const x=e.clientX-rect.left;
+        if(state.spectrum.cursorLocked){
+          state.spectrum.cursorLocked=false;
+          state.spectrum.cursorActive=true;
+          state.spectrum.cursorX=x;
+          this.app.logger.append('カーソル固定解除');
+        } else {
+          state.spectrum.cursorLocked=true;
+          state.spectrum.cursorActive=true;
+          state.spectrum.cursorX=x;
+          this.app.logger.append('カーソル値を固定');
+        }
+        this.app.uiRenderer.renderSpectrumCursor(null,null,null);
+      });
+      ui.spectrumCanvas.addEventListener('mouseleave',()=>{
+        if(state.spectrum.cursorLocked) return;
+        state.spectrum.cursorActive=false;
+        this.app.uiRenderer.renderSpectrumCursor(null,null,null);
+      });
+    }
+
+    bindSeekEvents(){
+      ui.positionBar.addEventListener('click',(e)=>{
+        if(state.seek.dragging) return;
+        const rect=ui.positionBar.getBoundingClientRect();
+        this.app.audioEngine.seekTo((e.clientX-rect.left)/rect.width);
+      });
+      ui.positionBar.addEventListener('pointerdown',(e)=>{
+        e.preventDefault();
+        ui.positionBar.setPointerCapture?.(e.pointerId);
+        this.app.audioEngine.beginSeekDrag(e.clientX);
+      });
+      ui.positionBar.addEventListener('pointermove',(e)=>{
+        if(state.seek.dragging) this.app.audioEngine.updateSeekDrag(e.clientX);
+      });
+      ui.positionBar.addEventListener('pointerup',async()=>{ await this.app.audioEngine.endSeekDrag(); });
+      ui.positionBar.addEventListener('pointercancel',async()=>{ await this.app.audioEngine.endSeekDrag(); });
+    }
+
+    bindToggleEvents(){
+      ui.togglePre.addEventListener('click',()=>{ state.spectrum.showPre=!state.spectrum.showPre; this.app.uiRenderer.updateToggleStyles(); });
+      ui.togglePost.addEventListener('click',()=>{ state.spectrum.showPost=!state.spectrum.showPost; this.app.uiRenderer.updateToggleStyles(); });
+      ui.togglePeak.addEventListener('click',()=>{ state.spectrum.showPeak=!state.spectrum.showPeak; this.app.uiRenderer.updateToggleStyles(); });
+      ui.specSmooth.addEventListener('input',()=>this.app.uiRenderer.applySpectrumSmoothing());
+      ui.amount.addEventListener('input',()=>this.app.uiRenderer.renderAmountControl());
+    }
+
+    bindLoopEvents(){
+      ui.btnSetA.addEventListener('click',()=>this.app.audioEngine.setLoopPoint('A'));
+      ui.btnSetB.addEventListener('click',()=>this.app.audioEngine.setLoopPoint('B'));
+      ui.btnLoop.addEventListener('click',()=>{
+        if(!canLoop()){
+          this.app.logger.append('Loopを有効にするには A と B を正しく設定してください');
+          return;
+        }
+        state.loop.enabled=!state.loop.enabled;
+        this.app.uiRenderer.renderTransportState();
+        this.app.logger.append(`Loop: ${state.loop.enabled?'ON':'OFF'}`);
+      });
+      ui.btnClearLoop.addEventListener('click',()=>{
+        state.loop.enabled=false;
+        state.loop.pointA=null;
+        state.loop.pointB=null;
+        this.app.uiRenderer.renderTransportState();
+        this.app.logger.append('Loop clear');
+      });
+    }
+
+    bindHpfEvents(){
+      ui.btnHpf.addEventListener('click',()=>{
+        state.params.hpfOn=!state.params.hpfOn;
+        this.app.uiRenderer.renderHpfControl();
+        this.app.logger.append(`HPF: ${state.params.hpfOn?'ON':'OFF'}`);
+      });
+      ui.hpfFreq.addEventListener('input',()=>this.app.uiRenderer.renderHpfControl());
+      ui.hpfSlope.addEventListener('change',()=>this.app.uiRenderer.renderHpfControl());
+    }
+
+    bindBackendEvents(){
+      ui.btnForceFallback.addEventListener('click',async()=>{
+        state.detector.forceScriptProcessor=!state.detector.forceScriptProcessor;
+        this.app.detectorBackendManager.renderBackendUI();
+        if(ctx){
+          await this.app.detectorBackendManager.installPreferredBackend();
+          this.app.uiRenderer.renderTransportState();
+          this.app.logger.append(`Detector backend policy: ${state.detector.forceScriptProcessor?'Force ScriptProcessor':'Auto'}`);
+        } else {
+          this.app.logger.append(`Detector backend policy: ${state.detector.forceScriptProcessor?'Force ScriptProcessor':'Auto'}`);
+        }
+      });
+    }
+
+    bindFileAndTestToneEvents(){
+      ui.fileInput.addEventListener('change',async(e)=>{
+        const file=e.target.files&&e.target.files[0];
+        if(!file) return;
+        try{ await loadFile(file); }
+        catch(err){ this.app.logger.append(`ファイル読込失敗: ${err.message||err}`); }
+      });
+      ui.btnTestTone.addEventListener('click',async()=>{
+        this.app.logger.append('Test Tone button clicked');
+        try{
+          await this.app.audioEngine.ensureReady();
+          await ctx.resume();
+          if(state.transport.status==='playing'||state.transport.status==='paused') this.app.audioEngine.stopInternally(true);
+          state.transport.audioBuffer=createTestBuffer();
+          state.transport.loaded=true;
+          state.transport.loadedName=`Test Tone ${FIXED.testToneDurationSec.toFixed(0)}s.wav`;
+          state.transport.status='stopped';
+          state.transport.offsetSec=0;
+          state.loop.pointA=null;
+          state.loop.pointB=null;
+          state.loop.enabled=false;
+          this.app.uiRenderer.renderTransportState();
+          resetReduction();
+          this.app.logger.append(`テストトーンを生成しました (${FIXED.testToneDurationSec.toFixed(0)}s)`);
+        }catch(err){
+          this.app.logger.append(`テストトーン生成失敗: ${err.message||err}`);
+        }
+      });
+    }
+
+    bindPlaybackEvents(){
+      ui.btnPlay.addEventListener('click',async()=>{ try{ await this.app.audioEngine.playFromStart(); }catch(err){ this.app.logger.append(`再生失敗: ${err.message||err}`);} });
+      ui.btnPause.addEventListener('click',async()=>{ try{ await this.app.audioEngine.ensureReady(); if(state.transport.status==='playing'){ this.app.audioEngine.pauseInternally(); this.app.logger.append(`一時停止: ${formatTime(state.transport.offsetSec)}`);} }catch(err){ this.app.logger.append(`Pause失敗: ${err.message||err}`);} });
+      ui.btnResume.addEventListener('click',async()=>{ try{ if(state.transport.audioBuffer) await this.app.audioEngine.resumeFromPause(); }catch(err){ this.app.logger.append(`Resume失敗: ${err.message||err}`);} });
+      ui.btnStop.addEventListener('click',async()=>{ try{ await this.app.audioEngine.ensureReady(); this.app.audioEngine.stopInternally(true); resetReduction(); this.app.logger.append('停止'); }catch(err){ this.app.logger.append(`停止失敗: ${err.message||err}`);} });
+      ui.btnBypass.addEventListener('click',async()=>{ try{ await this.app.audioEngine.ensureReady(); state.params.bypass=!state.params.bypass; this.app.audioEngine.syncModeGains(); this.app.uiRenderer.renderTransportState(); this.app.logger.append(`Bypass: ${state.params.bypass?'ON':'OFF'}`); }catch(err){ this.app.logger.append(`Bypass切替失敗: ${err.message||err}`);} });
+      ui.btnKeyListen.addEventListener('click',async()=>{ try{ await this.app.audioEngine.ensureReady(); state.params.keyListen=!state.params.keyListen; this.app.audioEngine.syncModeGains(); this.app.uiRenderer.renderTransportState(); this.app.logger.append(`Key Listen: ${state.params.keyListen?'ON':'OFF'}`); }catch(err){ this.app.logger.append(`Key Listen切替失敗: ${err.message||err}`);} });
+      ui.btnReset.addEventListener('click',async()=>{ try{ await this.app.audioEngine.ensureReady(); resetReduction(); }catch(err){ this.app.logger.append(`Reset失敗: ${err.message||err}`);} });
+      ui.btnExportWav.addEventListener('click',async()=>{ try{ await this.app.exportEngine.exportProcessedWav(); }catch(err){ this.app.logger.append(`Export失敗: ${err.message||err}`); } });
+    }
+
+    bindKeyboardEvents(){
+      window.addEventListener('keydown',async(e)=>{
+        if(e.repeat) return;
+        if(e.code==='Space'){
+          e.preventDefault();
+          try{
+            await this.app.audioEngine.ensureReady();
+            await ctx.resume();
+            if(state.transport.status==='playing'){
+              this.app.audioEngine.pauseInternally();
+              this.app.logger.append(`Space: Pause ${formatTime(state.transport.offsetSec)}`);
+            }else if(state.transport.status==='paused'){
+              await this.app.audioEngine.resumeFromPause();
+              this.app.logger.append('Space: Resume');
+            }else{
+              await this.app.audioEngine.playFromStart();
+              this.app.logger.append('Space: Play');
+            }
+          }catch(err){ this.app.logger.append(`Space操作失敗: ${err.message||err}`); }
+        }
+        if(e.code==='KeyS'){
+          e.preventDefault();
+          try{
+            await this.app.audioEngine.ensureReady();
+            this.app.audioEngine.stopInternally(true);
+            resetReduction();
+            this.app.logger.append('S: Stop');
+          }catch(err){ this.app.logger.append(`S Stop失敗: ${err.message||err}`); }
+        }
+      });
+    }
+
+    bindLifecycleEvents(){
+      window.addEventListener('beforeunload',()=>{
+        if(state.runtime.rafId) cancelAnimationFrame(state.runtime.rafId);
+        try{ this.app.audioEngine.cleanupCurrentSource(); }catch(e){}
+        try{ this.app.detectorBackendManager.cleanup(); }catch(e){}
+        if(detectorWorkletUrl){ try{ URL.revokeObjectURL(detectorWorkletUrl); }catch(e){} }
+      });
+    }
+
+    bindAll(){
+      this.bindSpectrumEvents();
+      this.bindSeekEvents();
+      this.bindToggleEvents();
+      this.bindLoopEvents();
+      this.bindHpfEvents();
+      this.bindBackendEvents();
+      this.bindFileAndTestToneEvents();
+      this.bindPlaybackEvents();
+      this.bindKeyboardEvents();
+      this.bindLifecycleEvents();
+    }
+  }
+
+  class AppController {
+    constructor(){
+      this.logger=new Logger();
+      this.uiRenderer=new UIRenderer();
+      this.audioGraphBuilder=new AudioGraphBuilder();
+      this.audioEngine=new AudioEngine(this.audioGraphBuilder);
+      this.detectorBackendManager=new DetectorBackendManagerStage3();
+      this.exportEngine=new ExportEngine();
+      this.eventBinder=new EventBinder(this);
+    }
+
+    initialize(){
+      this.uiRenderer.renderAmountControl();
+      this.uiRenderer.renderHpfControl();
+      this.uiRenderer.renderTransportState();
+      this.uiRenderer.renderMeterState();
+      this.uiRenderer.renderSpectrumCursor(null,null,null);
+      this.uiRenderer.applySpectrumSmoothing();
+      this.uiRenderer.updateToggleStyles();
+      this.detectorBackendManager.renderBackendUI();
+      this.uiRenderer.drawSpectrum();
+      this.uiRenderer.drawHistory();
+      this.eventBinder.bindAll();
+      animationLoop();
+      this.logger.append('初期化完了');
+      this.logger.append('Stage 16a-1: Stage14e動作経路維持 + AudioGraphBuilder箱追加 + factory化');
+      this.logger.append('まずは「ファイル選択」または「テストトーン」→「Play」で確認してください');
+      this.logger.append('Stage 16a-1 ready');
+      this.logger.append('AudioGraphBuilder stage box: context / nodes / connect / detector-fallback / finalize');
+    }
+  }
+
+  if(window.__bootLog) window.__bootLog('main script parsed');
+
+  let app=null;
+
+  function init(){
+    try{
+      if(window.__bootLog) window.__bootLog('init start');
+      app=new AppController();
+      window.app=app;
+      if(window.__bootLog) window.__bootLog('app controller created');
+      app.initialize();
+      if(window.__bootLog) window.__bootLog('init end');
+    }catch(err){
+      try{ if(window.__bootLog) window.__bootLog('init failure: ' + (err && err.message ? err.message : err)); }catch(_e){}
+      throw err;
+    }
+  }
+  init();
+})();
+</script>
+</body>
+</html>
