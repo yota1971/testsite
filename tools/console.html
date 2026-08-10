@@ -1643,42 +1643,40 @@ function bandMag(band, freqHz) {
 
   if (!on || !PARAMS.eqOn) return 1;
 
-  const w  = 2*Math.PI*freqHz/fs;
-  const jw = [Math.cos(w), Math.sin(w)];   // e^{jw}
-  const j2w= [Math.cos(2*w), Math.sin(2*w)];
+  // Design the biquad at the band's CENTRE frequency (RBJ cookbook, same
+  // formulas the worklet uses). Deriving the coefficients at the frequency
+  // being plotted instead makes |H| collapse to a constant — 10^(G/20) for
+  // PEQ, Q for HPF/LPF — which is why the curve used to ignore Freq and Q.
+  const w0 = 2*Math.PI*f0/fs;
+  const cos0 = Math.cos(w0), sin0 = Math.sin(w0);
+  const alpha = sin0/(2*Q);
 
   let b0,b1,b2,a0,a1,a2;
   if (type === 1) { // HPF
-    const cosw=Math.cos(w),sinw=Math.sin(w),alpha=sinw/(2*Q);
-    b0=(1+cosw)/2; b1=-(1+cosw); b2=(1+cosw)/2;
-    a0=1+alpha; a1=-2*cosw; a2=1-alpha;
+    b0=(1+cos0)/2; b1=-(1+cos0); b2=(1+cos0)/2;
+    a0=1+alpha; a1=-2*cos0; a2=1-alpha;
   } else if (type === 2) { // LPF
-    const cosw=Math.cos(w),sinw=Math.sin(w),alpha=sinw/(2*Q);
-    b0=(1-cosw)/2; b1=(1-cosw); b2=(1-cosw)/2;
-    a0=1+alpha; a1=-2*cosw; a2=1-alpha;
+    b0=(1-cos0)/2; b1=(1-cos0); b2=(1-cos0)/2;
+    a0=1+alpha; a1=-2*cos0; a2=1-alpha;
   } else { // PEQ
-    const A=Math.pow(10,G/40),cosw=Math.cos(w),sinw=Math.sin(w),alpha=sinw/(2*Q);
-    b0=1+alpha*A; b1=-2*cosw; b2=1-alpha*A;
-    a0=1+alpha/A; a1=-2*cosw; a2=1-alpha/A;
+    const A=Math.pow(10,G/40);
+    b0=1+alpha*A; b1=-2*cos0; b2=1-alpha*A;
+    a0=1+alpha/A; a1=-2*cos0; a2=1-alpha/A;
   }
 
-  // H(e^{jw}) = (b0 + b1*e^{-jw} + b2*e^{-2jw}) / (1 + a1*e^{-jw} + a2*e^{-2jw})
-  // using e^{-jw} = conj(e^{jw})
-  const re_b = b0 + b1*jw[0] + b2*j2w[0];
-  const im_b =      b1*(-jw[1]) + b2*(-j2w[1]);  // note: e^{-jw} = cos(w) - j sin(w)
+  // Then evaluate |H(e^{jw})| at the frequency being plotted.
+  // H(e^{jw}) = (b0 + b1*e^{-jw} + b2*e^{-2jw}) / (a0 + a1*e^{-jw} + a2*e^{-2jw})
+  const w = 2*Math.PI*freqHz/fs;
+  const c1 = Math.cos(w),   s1 = -Math.sin(w);     // e^{-jw}
+  const c2 = Math.cos(2*w), s2 = -Math.sin(2*w);   // e^{-2jw}
 
-  // Correct: e^{-jw} = [cos(w), -sin(w)]
-  const ebr= jw[0], ebi= -jw[1];
-  const e2br=j2w[0], e2bi= -j2w[1];
+  const Bre = b0 + b1*c1 + b2*c2;
+  const Bim =      b1*s1 + b2*s2;
+  const Are = a0 + a1*c1 + a2*c2;
+  const Aim =      a1*s1 + a2*s2;
 
-  const Bre = b0 + b1*ebr + b2*e2br;
-  const Bim =      b1*ebi + b2*e2bi;
-  const Are = a0 + a1*ebr + a2*e2br;
-  const Aim =      a1*ebi + a2*e2bi;
-
-  const magB = Math.sqrt(Bre*Bre + Bim*Bim);
-  const magA = Math.sqrt(Are*Are + Aim*Aim);
-  return magA > 1e-12 ? magB/magA : 1;
+  const magA = Math.hypot(Are, Aim);
+  return magA > 1e-12 ? Math.hypot(Bre, Bim)/magA : 1;
 }
 
 function drawEqCanvas() {
@@ -2051,6 +2049,8 @@ function setBarFromDb(barEl, db, minDb, maxDb) {
 let ctx_audio = null, strip = null, srcNode = null;
 let osc = null, currentBufferSource = null;
 let usingScriptProcessor = false;
+let preAnalyser = null, postAnalyser = null;
+let fftBuffer = null, vizRaf = 0;
 
 const statusEl = $('status');
 function setStatus(text, cls='') {
