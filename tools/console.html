@@ -2051,6 +2051,8 @@ function setBarFromDb(barEl, db, minDb, maxDb) {
 let ctx_audio = null, strip = null, srcNode = null;
 let osc = null, currentBufferSource = null;
 let usingScriptProcessor = false;
+let preAnalyser = null, postAnalyser = null;
+let fftBuffer = null, vizRaf = 0;
 
 const statusEl = $('status');
 function setStatus(text, cls='') {
