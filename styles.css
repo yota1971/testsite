@@ -105,3 +105,28 @@ body {
   outline: none;
 }
 .card a:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+
+/* 視認性の改善: 境界・コントラスト・見出しの区別 */
+.site-header {
+  z-index: 10;
+  border-bottom: 1px solid rgba(148,163,184,0.25);
+}
+.site-header nav a { opacity: 1; color: #cbd5e1; }
+.hero p { color: #cbd5e1; }
+.section > h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  padding-left: 0.75rem;
+  border-left: 4px solid var(--accent);
+}
+.section p { color: #cbd5e1; }
+.card {
+  border: 1px solid rgba(148,163,184,0.25);
+  transition: border-color 0.15s, transform 0.15s;
+}
+.card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.card a { font-size: 0.95rem; line-height: 1.5; }
+.site-footer { opacity: 1; color: #94a3b8; }
