@@ -2,6 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<!-- 外部への通信と外部リソースの読み込みを禁止する。万一スクリプトを注入されても外部へ送れない。
+     単一 HTML のためインラインのスクリプトと CSS は許可するしかない（'unsafe-inline'）。frame-ancestors は meta では効かない -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>音響・電気通信工事・映像 計算機</title>
 <style>
@@ -81,6 +84,8 @@ main{max-width:1180px;margin:0 auto;padding:18px 16px 60px}
 .rdet>summary{cursor:pointer;font-size:12.5px;color:var(--accent)}
 .rdet .card{margin-top:10px}
 .rempty{color:var(--fg2);font-size:13px;margin-top:14px}
+.rold{font-size:12px;color:var(--fg3);margin:0 0 8px}
+.rtext{margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 label.f{display:block;margin-bottom:11px}
 label.f>.lb{display:block;font-size:12.5px;color:var(--fg2);margin-bottom:3px;font-weight:550}
 label.f>.hint{display:block;font-size:11.5px;color:var(--fg3);margin-top:3px;line-height:1.45}
@@ -284,7 +289,7 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;color:var(--fg3);font-
 "use strict";
 /* 版数。計算結果が変わる変更・機能追加で上げ、旧版は history/ に保存して CHANGELOG.md に記録する。
    コピー・印刷した計算書に載るので、どの版の式で計算したかを後から追える。 */
-var APP_VERSION = '0.9.1';
+var APP_VERSION = '0.9.3';
 /* ============================================================
    共通ヘルパ
    ============================================================ */
@@ -348,8 +353,12 @@ function opt(x, dflt){
      累乗 = 要素 [ ^ 単項 ]        … 右結合。-2^2 = -4、2^3^2 = 512、2^-1 = 0.5
      要素 = 数値 | ( 式 )          … 数値は 1.5、.5、1e3 の形
    全角の数字・記号、×・÷・−、** も受け付ける。3 桁区切りのカンマ（1,200）は取り除く。
+   数値の正規表現は「整数部 + 任意の（小数点 + 小数部）」の形にして、桁の区切り方が一通りに決まるようにしてある。
+   \d+\.?\d* と書くと数字の列を整数部と小数部に何通りにも分けられ、照合に失敗したときの手戻りが桁数の 2 乗で増える（ReDoS。v0.9.1 まで）。
+   式は EXPR_MAX 文字まで（それより長い式は計算しない）。
    ============================================================ */
-var PLAIN_NUM = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+var PLAIN_NUM = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i;
+var EXPR_MAX = 200;
 function normExpr(s){
   return String(s)
     .replace(/[！-～]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); })
@@ -360,9 +369,10 @@ function normExpr(s){
 function evalExpr(src){
   var s = normExpr(src), i = 0;
   if(s === '') throw new Error('式が空です');
+  if(s.length > EXPR_MAX) throw new Error('式が長すぎます（' + EXPR_MAX + ' 文字まで）');
   function fail(msg){ throw new Error(msg); }
   function num(){
-    var m = /^(\d+\.?\d*|\.\d+)(e[+-]?\d+)?/i.exec(s.slice(i));
+    var m = /^(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?/i.exec(s.slice(i));
     if(!m) fail(i < s.length ? '「' + s.charAt(i) + '」の位置で数値または ( が必要です' : '式が途中で終わっています');
     i += m[0].length;
     return Number(m[0]);
@@ -454,8 +464,10 @@ function evalInputs(c, st){
   }
   return { st: out, errs: errs };
 }
+// 属性値（value="…" など）にも使うので引用符も変換する。" を通すと入力値から属性を注入できる（v0.9.1 まで）
 function esc(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 /** 数式のミニ記法: a_{b} → 下付き, a^{b} → 上付き */
 function mf(s){
@@ -3564,26 +3576,58 @@ function updateResBar(){
   var bar = document.getElementById('mres');
   if(bar) bar.hidden = resInView || inputFocused || reportView;
 }
-// 結果欄の HTML（計算書にも同じものを保存する）
-function outHtml(c, st, res){
-  var h = '';
-  if(res.head && res.head.length){
+/*
+ * 結果欄は「データ（snap）を作る → データから HTML を組み立てる」の 2 段で描く。
+ * 計算書には HTML ではなく snap を保存し、表示のたびに renderSnap で組み立てる。
+ * 保存データは localStorage 経由で書き換えられうるので、renderSnap は中身を信用しない:
+ * 文字列はすべて esc/mf を通し、属性に入る判定色は ok/warn/bad だけを通す（v0.9.2 まで HTML をそのまま保存していた）。
+ */
+function outHtml(c, st, res){ return renderSnap(snapOut(c, st, res)); }
+/** compute() の戻り値と入力値の一覧を、描画に必要な文字列だけの素のデータにする */
+function snapOut(c, st, res){
+  function s(x){ return (x === null || x === undefined) ? '' : String(x); }
+  return {
+    head: (res.head || []).map(function(d){ return { l: s(d.l), v: s(d.v), u: s(d.u), n: s(d.n), tone: s(d.tone) }; }),
+    given: givenList(c, st),
+    steps: (res.steps || []).map(function(p){ return { l: s(p.l), f: s(p.f), s: s(p.s), r: s(p.r), n: s(p.n) }; }),
+    tables: (res.tables || []).map(function(tb){
+      var list = tb.rows2 ? tb.rows2 : (tb.rows || []).map(function(r){ return {cells:r, tone:null}; });
+      return { title: s(tb.title), head: (tb.head || []).map(s),
+               rows: list.map(function(r){ return { cells: (r.cells || []).map(s), tone: s(r.tone) }; }) };
+    }),
+    notes: (res.notes || []).map(s)
+  };
+}
+function toneCls(t){ return (t === 'ok' || t === 'warn' || t === 'bad') ? t : ''; }
+function arr(x){ return Array.isArray(x) ? x : []; }
+function renderSnap(d){
+  var h = '', i;
+  d = d || {};
+  var head = arr(d.head);
+  if(head.length){
     h += '<div class="card"><h2>結果</h2><div class="heads">';
-    for(var i=0;i<res.head.length;i++){
-      var d = res.head[i];
-      h += '<div class="hd'+(d.tone?' '+d.tone:'')+'"><div class="l">'+mf(d.l)+'</div>';
-      h += '<div class="v">'+esc(d.v)+(d.u?'<span class="u">'+mf(d.u)+'</span>':'')+'</div>';
-      if(d.n) h += '<div class="n">'+mf(d.n)+'</div>';
+    for(i=0;i<head.length;i++){
+      var x = head[i] || {}, tn = toneCls(x.tone);
+      h += '<div class="hd'+(tn?' '+tn:'')+'"><div class="l">'+mf(x.l || '')+'</div>';
+      h += '<div class="v">'+esc(x.v === undefined ? '' : x.v)+(x.u?'<span class="u">'+mf(x.u)+'</span>':'')+'</div>';
+      if(x.n) h += '<div class="n">'+mf(x.n)+'</div>';
       h += '</div>';
     }
     h += '</div></div>';
   }
-  h += '<div class="card"><h2>入力値</h2><div class="given">'+givenHtml(c, st)+'</div></div>';
-  if(res.steps && res.steps.length){
+  h += '<div class="card"><h2>入力値</h2><div class="given">';
+  var given = arr(d.given);
+  for(i=0;i<given.length;i++){
+    var g = arr(given[i]);
+    h += '<div><span class="gl">'+esc(g[0] === undefined ? '' : g[0])+'</span><span class="gv">'+esc(g[1] === undefined ? '' : g[1])+'</span></div>';
+  }
+  h += '</div></div>';
+  var steps = arr(d.steps);
+  if(steps.length){
     h += '<div class="card"><h2>導出</h2><ol class="steps">';
-    for(var s=0;s<res.steps.length;s++){
-      var p = res.steps[s];
-      h += '<li><div class="st-l">'+mf(p.l)+'</div><div class="st-b">';
+    for(i=0;i<steps.length;i++){
+      var p = steps[i] || {};
+      h += '<li><div class="st-l">'+mf(p.l || '')+'</div><div class="st-b">';
       if(p.f) h += '<div><span class="k">式</span><span class="x">'+mf(p.f)+'</span></div>';
       if(p.s) h += '<div><span class="k">代入</span><span class="x">'+mf(p.s).replace(/\n/g,'<br>')+'</span></div>';
       if(p.r) h += '<div class="r-row"><span class="k">結果</span><span class="x">'+mf(p.r)+'</span></div>';
@@ -3593,27 +3637,29 @@ function outHtml(c, st, res){
     }
     h += '</ol></div>';
   }
-  if(res.tables && res.tables.length){
+  var tables = arr(d.tables);
+  if(tables.length){
     h += '<div class="card"><h2>表</h2>';
-    for(var t=0;t<res.tables.length;t++){
-      var tb = res.tables[t];
+    for(i=0;i<tables.length;i++){
+      var tb = tables[i] || {}, th = arr(tb.head), rows = arr(tb.rows);
       if(tb.title) h += '<p class="tbl-t">'+mf(tb.title)+'</p>';
       h += '<div class="tblwrap"><table class="out"><thead><tr>';
-      for(var th=0;th<tb.head.length;th++) h += '<th>'+mf(tb.head[th])+'</th>';
+      for(var j=0;j<th.length;j++) h += '<th>'+mf(th[j])+'</th>';
       h += '</tr></thead><tbody>';
-      var list = tb.rows2 ? tb.rows2 : (tb.rows || []).map(function(r){ return {cells:r, tone:null}; });
-      for(var r2=0;r2<list.length;r2++){
-        h += '<tr'+(list[r2].tone?' class="'+list[r2].tone+'"':'')+'>';
-        for(var cx=0;cx<list[r2].cells.length;cx++) h += '<td>'+mf(list[r2].cells[cx])+'</td>';
+      for(var r=0;r<rows.length;r++){
+        var row = rows[r] || {}, rt = toneCls(row.tone), cells = arr(row.cells);
+        h += '<tr'+(rt?' class="'+rt+'"':'')+'>';
+        for(var cx=0;cx<cells.length;cx++) h += '<td>'+mf(cells[cx])+'</td>';
         h += '</tr>';
       }
       h += '</tbody></table></div>';
     }
     h += '</div>';
   }
-  if(res.notes && res.notes.length){
+  var notes = arr(d.notes);
+  if(notes.length){
     h += '<div class="card"><h2>注記・根拠</h2><ul class="notes">';
-    for(var n=0;n<res.notes.length;n++) h += '<li>'+mf(res.notes[n])+'</li>';
+    for(i=0;i<notes.length;i++) h += '<li>'+mf(notes[i])+'</li>';
     h += '</ul></div>';
   }
   return h;
@@ -3622,8 +3668,9 @@ function outHtml(c, st, res){
 function withExpr(raw, val){
   return isExpr(raw) ? String(raw).trim() + ' = ' + fx(Number(val), 10) : raw;
 }
-function givenHtml(c, st){
-  var h = '', ev = evalInputs(c, st).st;
+/** 「入力値」カードの [欄名, 表示値] の一覧 */
+function givenList(c, st){
+  var out = [], ev = evalInputs(c, st).st;
   for(var i=0;i<c.inputs.length;i++){
     var inp = c.inputs[i];
     if(!visible(inp, ev)) continue;
@@ -3634,7 +3681,7 @@ function givenHtml(c, st){
         for(var ck in rs[r]) if(rs[r][ck] !== '') any = true;
         if(any) n++;
       }
-      h += '<div><span class="gl">'+esc(inp.label)+'</span><span class="gv">'+n+' 行</span></div>';
+      out.push([String(inp.label), n + ' 行']);
       continue;
     }
     var val = st[inp.k];
@@ -3645,9 +3692,9 @@ function givenHtml(c, st){
     } else {
       val = (inp.type === 'text' ? val : withExpr(val, ev[inp.k])) + (inp.unit ? ' ' + inp.unit : '');
     }
-    h += '<div><span class="gl">'+esc(inp.label)+'</span><span class="gv">'+esc(val)+'</span></div>';
+    out.push([String(inp.label), String(val)]);
   }
-  return h;
+  return out;
 }
 
 /* ============================================================
@@ -3844,7 +3891,7 @@ var report = [];
 var reportView = false;
 var clearArm = null;
 function loadReport(){
-  try { var r = JSON.parse(localStorage.getItem(REPORT_KEY) || '[]'); report = Array.isArray(r) ? r : []; }
+  try { var r = JSON.parse(localStorage.getItem(REPORT_KEY) || '[]'); report = Array.isArray(r) ? r.filter(function(x){ return x && typeof x === 'object' && typeof x.id === 'string'; }) : []; }
   catch(e){ report = []; }
 }
 function saveReport(){
@@ -3859,7 +3906,7 @@ function addToReport(){
   report.push({ id: c.id, title: c.title, stamp: stamp,
     state: JSON.parse(JSON.stringify(st)),
     head: (lastOut.head || []).slice(0, 3).map(function(d){ return plain(d.l) + ' ' + d.v + (d.u ? ' ' + plain(d.u) : ''); }),
-    html: outHtml(c, st, lastOut), text: outTextFor(c, st, lastOut, stamp) });
+    snap: snapOut(c, st, lastOut), text: outTextFor(c, st, lastOut, stamp) });
   saveReport(); updateReportBtn();
   toast('計算書に追加しました（' + report.length + ' 件）');
 }
@@ -3895,10 +3942,20 @@ function renderReport(){
       '<button type="button" class="iconbtn" data-rmove="' + i + ',1"' + (i < n-1 ? '' : ' disabled') + ' title="下へ">↓</button>' +
       '<button type="button" class="iconbtn" data-ropen="' + i + '" title="この時の入力で計算機を開く（その計算機の今の入力は置き換わります）">入力を開く</button>' +
       '<button type="button" class="iconbtn" data-rdel="' + i + '">削除</button></div></div>' +
-      '<div class="rsum">' + it.head.map(esc).join('　／　') + '</div>' +
-      '<details class="rdet"><summary>入力値・導出・表・注記を表示</summary>' + it.html + '</details></section>';
+      '<div class="rsum">' + arr(it.head).map(esc).join('　／　') + '</div>' +
+      '<details class="rdet"><summary>入力値・導出・表・注記を表示</summary>' + reportBody(it) + '</details></section>';
   }
   box.innerHTML = h;
+}
+/**
+ * 計算書 1 件の中身。保存した snap から組み立てる。
+ * v0.9.3 より前の計算書は HTML を丸ごと保存していた。それをそのまま表示すると、localStorage を書き換えられたときに
+ * スクリプトが動くので使わず、一緒に保存してあるテキスト版を文字として表示する（記録の内容は同じ）。
+ */
+function reportBody(it){
+  if(it.snap) return renderSnap(it.snap);
+  return '<div class="card"><p class="rold">この計算は旧版（v0.9.3 より前）で追加したため、テキストで表示しています。</p><pre class="rtext">' +
+    esc(it.text === undefined ? '' : it.text) + '</pre></div>';
 }
 function reportText(){
   var L = ['計算書（' + report.length + ' 件）', stampText().replace('計算日時', '作成日時'), ''];

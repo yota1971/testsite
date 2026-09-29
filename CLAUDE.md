@@ -17,3 +17,7 @@ No build step and no test suite. To preview locally, open `index.html` (or any f
 ## Relationship to `../教材/`
 
 Most of these tools originated as copies from the versioned tool series under `../教材/<name>/` (see `../MEMORY.md` for that folder's naming convention). **They have since diverged**: fixes have been committed here directly (e.g. `console.html`, `absorp.html` — see `git log`) that were never ported back to `教材/`. Do not assume `教材/` and `tools/` hold the same code for a given tool, and do not assume a fix made in one is reflected in the other — check before treating either as the source of truth for a specific bug.
+
+## External CDN scripts/styles
+
+All tools share one origin (`yota1971.github.io`), so any third-party script loaded by one tool can read/write every tool's `localStorage` (including `ac-calc.html`'s saved inputs and 計算書). Therefore every external `<script>`/`<link>` must use an **exact version** (no `@latest`, no version-less `npm/pkg` or `gh/user/repo` URLs) plus `integrity="sha384-…"` and `crossorigin="anonymous"`. Compute the hash from the pinned URL: `curl -s URL | openssl dgst -sha384 -binary | openssl base64 -A`. When upgrading a library, change the URL and the hash together. (Pinned on 2026-09-29: chart.js 4.5.1 / 4.4.1 / 3.9.1, katex 0.18.9, katex-copytex 1.0.2, soundfont-player 0.12.0, vscode markdown CSS @1.139.1.)
