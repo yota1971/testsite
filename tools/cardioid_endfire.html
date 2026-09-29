@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>サブウーファー Cardioid / End-fire 比較ツール（カーソル読取り付き・ダッシュボード版）</title>
+<title>サブウーファー Cardioid / End-fire 比較ツール（カーソル読取り付き・検算しやすい版）</title>
 <style>
   :root{
     --bg:#0f1115;
@@ -157,6 +157,7 @@
     display:block;
     background:linear-gradient(180deg,#0b1020,#0d1322);
     border-radius:10px;
+    touch-action:pan-y; /* 縦スクロールは許可し、タップ・横ドラッグで読取り */
   }
   .legend{
     display:flex;
@@ -264,9 +265,10 @@
     <div class="body">
       <div class="hint">
         <b>モデルの約束：</b>
-        前方 = 0°（右）、後方 = 180°（左）、前ユニットは前側 <span class="mono">x=0</span>、後ユニットは後側 <span class="mono">x=-d</span>。<br>
+        前方 = 0°、後方 = 180°、前ユニットは前側 <span class="mono">x=0</span>、後ユニットは後側 <span class="mono">x=-d</span>。
+        配列模式図は <b>前方を右</b>、ポーラー図は <b>前方を上（90° が右）</b> に描いています。<br>
         Cardioid は <b>後ユニットを逆相 + d/c 遅延</b>、End-fire は <b>前ユニットを d/c 遅延</b> としています。<br>
-        表示用 dB は教材向けに <b>-60 dB を下限</b>、後方減衰表示は <b>0〜40 dB</b> に制限しています。
+        表示用 dB は教材向けに <b>-60 dB を下限</b>、後方減衰表示は <b>-20〜40 dB</b> に制限しています（負の値 = 後方の方が大きい）。
       </div>
 
       <div class="ctrl">
@@ -276,7 +278,7 @@
 
       <div class="ctrl">
         <label>前後距離 d <span class="v" id="distVal">1.072 m</span></label>
-        <input id="dist" type="range" min="0.20" max="2.50" step="0.001" value="1.072">
+        <input id="dist" type="range" min="0.20" max="3.00" step="0.001" value="1.072">
       </div>
 
       <div class="ctrl">
@@ -491,6 +493,7 @@
   const $ = id => document.getElementById(id);
   const TAU = Math.PI * 2;
   const DB_FLOOR = -60;   // 表示用 dB 下限
+  const REJECT_MIN = -20; // 表示用 後方減衰下限（負 = 後方の方が大きい）
   const REJECT_MAX = 40;  // 表示用 後方減衰上限
 
   function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
@@ -599,11 +602,44 @@
     ctx.restore();
   }
 
+  function drawVLine(ctx, x, y, h, color, dash){
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.setLineDash(dash);
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y+h); ctx.stroke();
+    ctx.restore();
+  }
+
+  // =========================================================
+  // Canvas (HiDPI)
+  // 描画コードは HTML の width/height を論理サイズとして扱い、
+  // 実ピクセルは devicePixelRatio 倍で確保する。
+  // =========================================================
+  const LOGICAL = new WeakMap();
+  let DPR = 1;
+
+  function setupCanvases(list){
+    DPR = window.devicePixelRatio || 1;
+    for(const cv of list){
+      if(!LOGICAL.has(cv)) LOGICAL.set(cv, {w:cv.width, h:cv.height});
+      const {w,h} = LOGICAL.get(cv);
+      cv.width = Math.round(w * DPR);
+      cv.height = Math.round(h * DPR);
+    }
+  }
+  function size(cv){ return LOGICAL.get(cv); }
+  function ctxOf(cv){
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    return ctx;
+  }
+
   function canvasPos(e, canvas){
     const rect = canvas.getBoundingClientRect();
+    const {w,h} = size(canvas);
     return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
+      x: (e.clientX - rect.left) * (w / rect.width),
+      y: (e.clientY - rect.top) * (h / rect.height),
       cssX: e.clientX - rect.left,
       cssY: e.clientY - rect.top
     };
@@ -708,6 +744,8 @@
     vectorTip:$("vectorTip")
   };
 
+  const CANVASES = [els.layoutCanvas, els.polarCanvas, els.rejectCanvas, els.freqCanvas, els.vectorCanvas];
+
   // =========================================================
   // State
   // =========================================================
@@ -726,7 +764,6 @@
   };
 
   const hover = {
-    layout:null,
     polar:null,
     reject:null,
     freq:null,
@@ -740,38 +777,41 @@
   //   front source x = 0
   //   rear source x = -d
   // phase = k * x * cos(theta) - w * delay
+  // 音響モデルは sourcesFor() の音源定義だけで決まる。
+  // responseForMode / sourceVectorsAt はどちらもここから計算する。
   // =========================================================
-  function responseForMode(theta, f, mode, st){
-    const k = TAU * f / st.c;
-    const w = TAU * f;
+  // 戻り値は常に [前ユニット, 後ユニット] の順
+  function sourcesFor(mode, st){
     const d = st.dist;
     const t = d / st.c;
-    const cosTheta = Math.cos(theta);
-
-    let sources;
     if(mode === "cardioid"){
-      const gRear = dbToAmp(st.cardRearGainDb);
-      sources = [
-        {x:0,  gain:1,     pol:+1, delay:0},
-        {x:-d, gain:gRear, pol:-1, delay:t}
-      ];
-    }else{
-      const gFront = dbToAmp(st.endFrontGainDb);
-      sources = [
-        {x:0,  gain:gFront, pol:+1, delay:t},
-        {x:-d, gain:1,      pol:+1, delay:0}
+      return [
+        {x:0,  gain:1,                          pol:+1, delay:0},
+        {x:-d, gain:dbToAmp(st.cardRearGainDb), pol:-1, delay:t}
       ];
     }
+    return [
+      {x:0,  gain:dbToAmp(st.endFrontGainDb), pol:+1, delay:t},
+      {x:-d, gain:1,                          pol:+1, delay:0}
+    ];
+  }
 
-    let sum = {re:0, im:0};
-    for(const s of sources){
+  function sourceVectorsAt(mode, theta, f, st){
+    const k = TAU * f / st.c;
+    const w = TAU * f;
+    const cosTheta = Math.cos(theta);
+    const [front, rear] = sourcesFor(mode, st).map(s => {
       const phase = k * s.x * cosTheta - w * s.delay;
-      sum = cadd(sum, {
+      return {
         re: s.pol * s.gain * Math.cos(phase),
         im: s.pol * s.gain * Math.sin(phase)
-      });
-    }
-    return sum;
+      };
+    });
+    return { front, rear, sum: cadd(front, rear) };
+  }
+
+  function responseForMode(theta, f, mode, st){
+    return sourceVectorsAt(mode, theta, f, st).sum;
   }
 
   function frontBackAtFreq(f, mode, st){
@@ -779,36 +819,9 @@
     const backAmp  = cabs(responseForMode(Math.PI, f, mode, st));
     const frontDb  = ampToDbDisplay(frontAmp);
     const backDb   = ampToDbDisplay(backAmp);
-    const rejectDb = clamp(frontDb - backDb, 0, REJECT_MAX);
+    const rejectDb = clamp(frontDb - backDb, REJECT_MIN, REJECT_MAX);
 
     return { frontAmp, backAmp, frontDb, backDb, rejectDb };
-  }
-
-  function sourceVectorsAt(mode, theta, f, st){
-    const k = TAU * f / st.c;
-    const w = TAU * f;
-    const d = st.dist;
-    const t = d / st.c;
-    const cosTheta = Math.cos(theta);
-    const rearPathPhase = k * (-d) * cosTheta; // path-length phase for rear unit at x=-d
-
-    let front, rear;
-    if(mode === "cardioid"){
-      const gRear = dbToAmp(st.cardRearGainDb);
-      // front: x=0, delay=0, pol=+1  → phase = 0
-      // rear:  x=-d, delay=t, pol=-1 → phase = rearPathPhase - w*t
-      const rearPhase = rearPathPhase - w * t;
-      front = { re: 1, im: 0 };
-      rear  = { re: -gRear * Math.cos(rearPhase), im: -gRear * Math.sin(rearPhase) };
-    }else{
-      const gFront = dbToAmp(st.endFrontGainDb);
-      // front: x=0, delay=t, pol=+1 → phase = -w*t
-      // rear:  x=-d, delay=0, pol=+1 → phase = rearPathPhase
-      const frontPhase = -w * t;
-      front = { re: gFront * Math.cos(frontPhase), im: gFront * Math.sin(frontPhase) };
-      rear  = { re: Math.cos(rearPathPhase), im: Math.sin(rearPathPhase) };
-    }
-    return { front, rear, sum: cadd(front, rear) };
   }
 
   function relativePhaseDiffDeg(mode, theta, f, st){
@@ -819,6 +832,7 @@
   function wavelength(f, c){ return c / f; }
   function quarterWave(f, c){ return c / f / 4; }
   function delayDc(dist, c){ return dist / c * 1000; }
+  function modeLabel(mode){ return mode === "cardioid" ? "Cardioid" : "End-fire"; }
 
   // =========================================================
   // Sync
@@ -827,7 +841,7 @@
     els.freqVal.textContent = fmt(state.freq,1) + " Hz";
     els.distVal.textContent = fmt(state.dist,3) + " m";
     els.soundSpeedVal.textContent = fmt(state.c,1) + " m/s";
-    els.detailModeVal.textContent = state.detailMode === "cardioid" ? "Cardioid" : "End-fire";
+    els.detailModeVal.textContent = modeLabel(state.detailMode);
     els.cardRearGainVal.textContent = fmt(state.cardRearGainDb,1) + " dB";
     els.endFrontGainVal.textContent = fmt(state.endFrontGainDb,1) + " dB";
     els.bandMinVal.textContent = fmt(state.bandMin,0) + " Hz";
@@ -900,6 +914,22 @@
     return {amps, maxAmp};
   }
 
+  // ポーラーデータは描画とカーソル読取りで共有し、モデルに関わる state が変わったときだけ再計算する
+  let polarCache = {key:null};
+  function getPolarData(){
+    const key = [state.freq, state.dist, state.c, state.cardRearGainDb, state.endFrontGainDb].join("|");
+    if(polarCache.key !== key){
+      const cardioid = buildPolarData("cardioid");
+      const endfire = buildPolarData("endfire");
+      polarCache = {key, cardioid, endfire, globalMax:Math.max(cardioid.maxAmp, endfire.maxAmp)};
+    }
+    return polarCache;
+  }
+
+  function polarScale(pd, mode){
+    return state.overlayNormalize ? 1 / pd[mode].maxAmp : 1 / pd.globalMax;
+  }
+
   function polarAmpAtAngle(mode, theta){
     return cabs(responseForMode(theta, state.freq, mode, state));
   }
@@ -909,7 +939,20 @@
   // =========================================================
   const GRAPH = { left:48, top:22, rightPad:66, bottomPad:42 };
   function graphInner(cv){
-    return { x:GRAPH.left, y:GRAPH.top, ww:cv.width-GRAPH.rightPad, hh:cv.height-GRAPH.bottomPad };
+    const {w,h} = size(cv);
+    return { x:GRAPH.left, y:GRAPH.top, ww:w-GRAPH.rightPad, hh:h-GRAPH.bottomPad };
+  }
+
+  // ポーラー図の座標系: 前方 0° が上、90° が右（時計回り）
+  function polarGeom(){
+    const {w,h} = size(els.polarCanvas);
+    return { cx:w/2, cy:h/2, R:h*0.33 };
+  }
+  function polarPt(g, theta, r){
+    return { x:g.cx + Math.sin(theta)*r, y:g.cy - Math.cos(theta)*r };
+  }
+  function polarAngleAt(g, x, y){
+    return Math.atan2(x - g.cx, g.cy - y);
   }
 
   // =========================================================
@@ -917,8 +960,8 @@
   // =========================================================
   function renderLayout(){
     const cv = els.layoutCanvas;
-    const ctx = cv.getContext("2d");
-    const w = cv.width, h = cv.height;
+    const ctx = ctxOf(cv);
+    const {w,h} = size(cv);
     clearCanvas(ctx, w, h);
 
     const left = {x:16, y:22, w:w/2-24, h:h-36};
@@ -936,13 +979,14 @@
     ctx.restore();
 
     const titleColor = mode === "cardioid" ? C.green : C.purple;
-    drawText(ctx, mode === "cardioid" ? "Cardioid" : "End-fire", rect.x+10, rect.y+18, titleColor, "bold 13px sans-serif");
+    drawText(ctx, modeLabel(mode), rect.x+10, rect.y+18, titleColor, "bold 13px sans-serif");
 
     const baseY = rect.y + rect.h*0.58;
-    const maxDist = 2.6;
-    const pxPerM = (rect.w * 0.34) / maxDist;
-    const frontX = rect.x + rect.w * 0.37;
+    const maxDist = 3.0; // d スライダー上限と合わせる
+    const pxPerM = (rect.w * 0.31) / maxDist;
+    const frontX = rect.x + rect.w * 0.40;
     const rearX = frontX - state.dist * pxPerM;
+    const rearLabelX = Math.max(rearX, rect.x + 38); // 注記がカードの左端からはみ出さないように
 
     ctx.save();
     ctx.strokeStyle = "#64748b";
@@ -966,7 +1010,7 @@
     drawText(ctx, "後", rearX, baseY-16, C.orange, "12px sans-serif", "center");
     drawText(ctx,
       mode === "cardioid" ? `逆相 / ${fmt(delayDc(state.dist,state.c),3)} ms` : "正相 / 0 ms",
-      rearX, baseY+22, C.muted, "10px sans-serif", "center"
+      rearLabelX, baseY+22, C.muted, "10px sans-serif", "center"
     );
 
     ctx.save();
@@ -1001,17 +1045,13 @@
   // =========================================================
   function renderPolar(){
     const cv = els.polarCanvas;
-    const ctx = cv.getContext("2d");
-    const w = cv.width, h = cv.height;
+    const ctx = ctxOf(cv);
+    const {w,h} = size(cv);
     clearCanvas(ctx, w, h);
 
-    const cx = w/2;
-    const cy = h/2 + 8;
-    const R = Math.min(w,h)*0.34;
-
-    const cardio = buildPolarData("cardioid");
-    const endf = buildPolarData("endfire");
-    const globalMax = Math.max(cardio.maxAmp, endf.maxAmp);
+    const g = polarGeom();
+    const {cx, cy, R} = g;
+    const pd = getPolarData();
 
     // grid
     ctx.save();
@@ -1023,62 +1063,63 @@
       ctx.stroke();
     }
     for(let d=0; d<360; d+=30){
-      const th = rad(d);
+      const p = polarPt(g, rad(d), R);
       ctx.beginPath();
       ctx.moveTo(cx,cy);
-      ctx.lineTo(cx + Math.cos(th)*R, cy - Math.sin(th)*R);
+      ctx.lineTo(p.x, p.y);
       ctx.stroke();
     }
     ctx.restore();
 
     if(state.showLabels){
-      drawText(ctx,"前方 0°",cx+R+42,cy,C.blue,"12px sans-serif","center","middle");
-      drawText(ctx,"後方 180°",cx-R-46,cy,C.red,"12px sans-serif","center","middle");
-      drawText(ctx,"0 dB",cx+6,cy-R-2,C.muted,"10px sans-serif");
-      drawText(ctx,"-6 dB",cx+6,cy-R*0.5-2,C.muted,"10px sans-serif");
-      for(const d of [0,90,180,270]){
-        const th = rad(d);
-        drawText(ctx,`${d}°`,cx+Math.cos(th)*(R+14),cy-Math.sin(th)*(R+14),C.muted,"10px sans-serif","center","middle");
+      const top = polarPt(g, 0, R+14);
+      const bottom = polarPt(g, Math.PI, R+14);
+      drawText(ctx,"前方 0°",top.x,top.y,C.blue,"12px sans-serif","center","middle");
+      drawText(ctx,"後方 180°",bottom.x,bottom.y,C.red,"12px sans-serif","center","middle");
+      for(const d of [90,270]){
+        const p = polarPt(g, rad(d), R+16);
+        drawText(ctx,`${d}°`,p.x,p.y,C.muted,"10px sans-serif","center","middle");
       }
+      // 振幅リング（リニア）: 外周 = 0 dB、半径 1/2 = -6 dB
+      drawText(ctx,"0 dB",cx+R-3,cy-4,C.muted,"10px sans-serif","right");
+      drawText(ctx,"-6 dB",cx+R*0.5-3,cy-4,C.muted,"10px sans-serif","right");
+      drawText(ctx,
+        state.overlayNormalize ? "外周 0 dB = 各方式の最大値" : "外周 0 dB = 2方式共通の最大値",
+        10, 16, C.muted, "10px sans-serif"
+      );
     }
 
-    drawPolarShape(ctx, cardio, cx, cy, R, C.green, "rgba(0,158,115,.15)", globalMax);
-    drawPolarShape(ctx, endf, cx, cy, R, C.purple, "rgba(204,121,167,.12)", globalMax);
+    drawPolarShape(ctx, g, pd.cardioid, polarScale(pd,"cardioid"), C.green, "rgba(0,158,115,.15)");
+    drawPolarShape(ctx, g, pd.endfire, polarScale(pd,"endfire"), C.purple, "rgba(204,121,167,.12)");
 
     // hover ray
     if(hover.polar){
       const th = hover.polar.theta;
+      const edge = polarPt(g, th, R);
       ctx.save();
       ctx.strokeStyle = "#e5e7eb";
       ctx.setLineDash([4,4]);
       ctx.beginPath();
       ctx.moveTo(cx,cy);
-      ctx.lineTo(cx + Math.cos(th)*R, cy - Math.sin(th)*R);
+      ctx.lineTo(edge.x, edge.y);
       ctx.stroke();
       ctx.restore();
 
-      const cScale = state.overlayNormalize ? 1/cardio.maxAmp : 1/globalMax;
-      const eScale = state.overlayNormalize ? 1/endf.maxAmp : 1/globalMax;
-      const cAmp = polarAmpAtAngle("cardioid", th);
-      const eAmp = polarAmpAtAngle("endfire", th);
-
-      drawDot(ctx, cx + Math.cos(th)*R*cAmp*cScale, cy - Math.sin(th)*R*cAmp*cScale, 3.5, C.green);
-      drawDot(ctx, cx + Math.cos(th)*R*eAmp*eScale, cy - Math.sin(th)*R*eAmp*eScale, 3.5, C.purple);
+      const pc = polarPt(g, th, R*polarAmpAtAngle("cardioid", th)*polarScale(pd,"cardioid"));
+      const pe = polarPt(g, th, R*polarAmpAtAngle("endfire", th)*polarScale(pd,"endfire"));
+      drawDot(ctx, pc.x, pc.y, 3.5, C.green);
+      drawDot(ctx, pe.x, pe.y, 3.5, C.purple);
     }
   }
 
-  function drawPolarShape(ctx, data, cx, cy, R, stroke, fill, globalMax){
+  function drawPolarShape(ctx, g, data, scale, stroke, fill){
     const n = data.amps.length;
-    const scale = state.overlayNormalize ? (1 / data.maxAmp) : (1 / globalMax);
 
     ctx.save();
     ctx.beginPath();
     for(let i=0;i<n;i++){
-      const th = i / n * TAU;
-      const rr = R * data.amps[i] * scale;
-      const xx = cx + Math.cos(th) * rr;
-      const yy = cy - Math.sin(th) * rr;
-      if(i===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy);
+      const p = polarPt(g, i / n * TAU, g.R * data.amps[i] * scale);
+      if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
     }
     ctx.closePath();
     ctx.fillStyle = fill;
@@ -1094,17 +1135,18 @@
   // =========================================================
   function renderReject(){
     const cv = els.rejectCanvas;
-    const ctx = cv.getContext("2d");
-    const w = cv.width, h = cv.height;
+    const ctx = ctxOf(cv);
+    const {w,h} = size(cv);
     clearCanvas(ctx, w, h);
 
     const {x, y, ww, hh} = graphInner(cv);
-    drawGrid(ctx,x,y,ww,hh,8,5);
+    const yDiv = (REJECT_MAX - REJECT_MIN) / 10;
+    drawGrid(ctx,x,y,ww,hh,8,yDiv);
     drawAxesBox(ctx,x,y,ww,hh);
 
     const {fmin,fmax} = getBandRange();
     const n = 500;
-    const yMin = 0;
+    const yMin = REJECT_MIN;
     const yMax = REJECT_MAX;
 
     function xMap(f){ return x + (f-fmin)/(fmax-fmin)*ww; }
@@ -1112,6 +1154,7 @@
 
     // background zones
     const zones = [
+      {from:REJECT_MIN,to:0,col:"rgba(213,94,0,.20)"},
       {from:0,to:6,col:"rgba(213,94,0,.08)"},
       {from:6,to:12,col:"rgba(240,228,66,.08)"},
       {from:12,to:REJECT_MAX,col:"rgba(34,197,94,.08)"}
@@ -1123,10 +1166,20 @@
       ctx.restore();
     }
 
+    // 0 dB 基準線
+    ctx.save();
+    ctx.strokeStyle = "#94a3b8";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(x,yMap(0)); ctx.lineTo(x+ww,yMap(0)); ctx.stroke();
+    ctx.restore();
+    if(state.showLabels){
+      drawText(ctx, "後方の方が大きい", x+6, yMap(REJECT_MIN)-6, C.red, "10px sans-serif");
+    }
+
     // labels
-    for(let i=0;i<=5;i++){
-      const v = yMax - (yMax-yMin)*i/5;
-      drawText(ctx, `${fmt(v,0)}`, x-6, y+hh*i/5, C.muted, "10px sans-serif", "right", "middle");
+    for(let i=0;i<=yDiv;i++){
+      const v = yMax - (yMax-yMin)*i/yDiv;
+      drawText(ctx, `${fmt(v,0)}`, x-6, y+hh*i/yDiv, C.muted, "10px sans-serif", "right", "middle");
     }
     for(let i=0;i<=8;i++){
       const f = fmin + (fmax-fmin)*i/8;
@@ -1144,25 +1197,7 @@
     drawSeries(ctx, arrC, xMap, yMap, C.green, 2.3);
     drawSeries(ctx, arrE, xMap, yMap, C.purple, 2.3);
 
-    // design freq
-    const dx = xMap(state.freq);
-    ctx.save();
-    ctx.strokeStyle = C.gray;
-    ctx.setLineDash([5,4]);
-    ctx.beginPath(); ctx.moveTo(dx,y); ctx.lineTo(dx,y+hh); ctx.stroke();
-    ctx.restore();
-
-    if(state.showTheory){
-      const fq = state.c/(4*state.dist);
-      if(fq>=fmin && fq<=fmax){
-        const tx = xMap(fq);
-        ctx.save();
-        ctx.strokeStyle = "#cbd5e1";
-        ctx.setLineDash([2,4]);
-        ctx.beginPath(); ctx.moveTo(tx,y); ctx.lineTo(tx,y+hh); ctx.stroke();
-        ctx.restore();
-      }
-    }
+    drawFreqMarkers(ctx, xMap, fmin, fmax, y, hh);
 
     if(hover.reject){
       const f = hover.reject.f;
@@ -1170,14 +1205,22 @@
       const e = frontBackAtFreq(f,"endfire",state).rejectDb;
       const hx = xMap(f);
 
-      ctx.save();
-      ctx.strokeStyle = "#e5e7eb";
-      ctx.setLineDash([4,4]);
-      ctx.beginPath(); ctx.moveTo(hx,y); ctx.lineTo(hx,y+hh); ctx.stroke();
-      ctx.restore();
-
+      drawVLine(ctx, hx, y, hh, "#e5e7eb", [4,4]);
       drawDot(ctx, hx, yMap(c), 3, C.green);
       drawDot(ctx, hx, yMap(e), 3, C.purple);
+    }
+  }
+
+  // 設計周波数線と λ/4 整合線（表示帯域内のときだけ描く）
+  function drawFreqMarkers(ctx, xMap, fmin, fmax, y, hh){
+    if(state.freq>=fmin && state.freq<=fmax){
+      drawVLine(ctx, xMap(state.freq), y, hh, C.gray, [5,4]);
+    }
+    if(state.showTheory){
+      const fq = state.c/(4*state.dist);
+      if(fq>=fmin && fq<=fmax){
+        drawVLine(ctx, xMap(fq), y, hh, "#cbd5e1", [2,4]);
+      }
     }
   }
 
@@ -1199,8 +1242,8 @@
   // =========================================================
   function renderFreqDetail(){
     const cv = els.freqCanvas;
-    const ctx = cv.getContext("2d");
-    const w = cv.width, h = cv.height;
+    const ctx = ctxOf(cv);
+    const {w,h} = size(cv);
     clearCanvas(ctx, w, h);
 
     const {x, y, ww, hh} = graphInner(cv);
@@ -1242,34 +1285,13 @@
     drawSeries(ctx, arrF, xMap, yMap, C.blue, 2.3);
     drawSeries(ctx, arrB, xMap, yMap, C.red, 2.3);
 
-    const dx = xMap(state.freq);
-    ctx.save();
-    ctx.strokeStyle = C.gray;
-    ctx.setLineDash([5,4]);
-    ctx.beginPath(); ctx.moveTo(dx,y); ctx.lineTo(dx,y+hh); ctx.stroke();
-    ctx.restore();
-
-    if(state.showTheory){
-      const fq = state.c/(4*state.dist);
-      if(fq>=fmin && fq<=fmax){
-        const tx = xMap(fq);
-        ctx.save();
-        ctx.strokeStyle = "#cbd5e1";
-        ctx.setLineDash([2,4]);
-        ctx.beginPath(); ctx.moveTo(tx,y); ctx.lineTo(tx,y+hh); ctx.stroke();
-        ctx.restore();
-      }
-    }
+    drawFreqMarkers(ctx, xMap, fmin, fmax, y, hh);
 
     if(hover.freq){
       const f = hover.freq.f;
       const fb = frontBackAtFreq(f,mode,state);
       const hx = xMap(f);
-      ctx.save();
-      ctx.strokeStyle = "#e5e7eb";
-      ctx.setLineDash([4,4]);
-      ctx.beginPath(); ctx.moveTo(hx,y); ctx.lineTo(hx,y+hh); ctx.stroke();
-      ctx.restore();
+      drawVLine(ctx, hx, y, hh, "#e5e7eb", [4,4]);
       drawDot(ctx, hx, yMap(fb.frontDb), 3, C.blue);
       drawDot(ctx, hx, yMap(fb.backDb), 3, C.red);
     }
@@ -1280,8 +1302,8 @@
   // =========================================================
   function renderVectorDetail(){
     const cv = els.vectorCanvas;
-    const ctx = cv.getContext("2d");
-    const w = cv.width, h = cv.height;
+    const ctx = ctxOf(cv);
+    const {w,h} = size(cv);
     clearCanvas(ctx,w,h);
 
     const mode = state.detailMode;
@@ -1343,6 +1365,16 @@
     renderVectorDetail();
   }
 
+  // 連続するイベントは 1 フレームに 1 回の再描画にまとめる
+  let renderQueued = 0;
+  function requestRender(){
+    if(renderQueued) return;
+    renderQueued = requestAnimationFrame(()=>{
+      renderQueued = 0;
+      renderAll();
+    });
+  }
+
   // =========================================================
   // Hover readout panel
   // =========================================================
@@ -1356,240 +1388,193 @@
 
   // =========================================================
   // Hover handlers
+  // bindHover が pointer イベント（マウス・タッチ・ペン）を共通処理し、
+  // 各 bind*Hover は hover の状態更新とツールチップ／読取り文字列の組み立てだけを行う。
+  // タッチでは指を離しても読取りを残し、別のキャンバスに触れたら前の表示を消す。
   // =========================================================
-  function bindLayoutHover(){
-    const cv = els.layoutCanvas;
-    const tip = els.layoutTip;
+  let touchActive = null; // {tip, key}
+
+  function bindHover(cv, tip, key, onMove){
     const box = tip.parentElement;
 
-    cv.addEventListener("mousemove", e=>{
+    const move = e => {
+      if(e.pointerType !== "mouse"){
+        if(touchActive && touchActive.tip !== tip){
+          hideTip(touchActive.tip);
+          if(touchActive.key) hover[touchActive.key] = null;
+        }
+        touchActive = {tip, key};
+      }
       const p = canvasPos(e,cv);
-      hover.layout = {x:p.x,y:p.y};
+      const r = onMove(p);
+      requestRender();
+      showTip(tip,p.cssX,p.cssY,r.tip,box);
+      setHoverReadout(r.readout);
+    };
 
+    cv.addEventListener("pointermove", move);
+    cv.addEventListener("pointerdown", move);
+    cv.addEventListener("pointerleave", e => {
+      if(e.pointerType !== "mouse") return;
+      if(key) hover[key] = null;
+      hideTip(tip);
+      clearHoverReadout();
+      requestRender();
+    });
+  }
+
+  function bindLayoutHover(){
+    bindHover(els.layoutCanvas, els.layoutTip, null, ()=>{
       const cFB = frontBackAtFreq(state.freq,"cardioid",state);
       const eFB = frontBackAtFreq(state.freq,"endfire",state);
 
-      const html =
-        `<div><span class="k">設計周波数</span> <span class="em">${fmt(state.freq,1)} Hz</span></div>
-         <div><span class="k">距離 d</span> ${fmt(state.dist,3)} m</div>
-         <div><span class="k">d/c</span> ${fmt(delayDc(state.dist,state.c),3)} ms</div>
-         <div style="margin-top:4px"><span class="g">Cardioid</span> 前 ${fmt(cFB.frontDb,1)} / 後 ${fmt(cFB.backDb,1)} / 減衰 ${fmt(cFB.rejectDb,1)} dB</div>
-         <div><span class="p">End-fire</span> 前 ${fmt(eFB.frontDb,1)} / 後 ${fmt(eFB.backDb,1)} / 減衰 ${fmt(eFB.rejectDb,1)} dB</div>`;
-      showTip(tip,p.cssX,p.cssY,html,box);
-
-      setHoverReadout(
-        `【配列模式図】<br>
-         設計 ${fmt(state.freq,1)} Hz / d=${fmt(state.dist,3)} m / d/c=${fmt(delayDc(state.dist,state.c),3)} ms<br>
-         Cardioid: 前 ${fmt(cFB.frontDb,1)} dB / 後 ${fmt(cFB.backDb,1)} dB / 後方減衰 ${fmt(cFB.rejectDb,1)} dB<br>
-         End-fire: 前 ${fmt(eFB.frontDb,1)} dB / 後 ${fmt(eFB.backDb,1)} dB / 後方減衰 ${fmt(eFB.rejectDb,1)} dB`
-      );
-    });
-
-    cv.addEventListener("mouseleave", ()=>{
-      hover.layout = null;
-      hideTip(tip);
-      clearHoverReadout();
-      renderAll();
+      return {
+        tip:
+          `<div><span class="k">設計周波数</span> <span class="em">${fmt(state.freq,1)} Hz</span></div>
+           <div><span class="k">距離 d</span> ${fmt(state.dist,3)} m</div>
+           <div><span class="k">d/c</span> ${fmt(delayDc(state.dist,state.c),3)} ms</div>
+           <div style="margin-top:4px"><span class="g">Cardioid</span> 前 ${fmt(cFB.frontDb,1)} / 後 ${fmt(cFB.backDb,1)} / 減衰 ${fmt(cFB.rejectDb,1)} dB</div>
+           <div><span class="p">End-fire</span> 前 ${fmt(eFB.frontDb,1)} / 後 ${fmt(eFB.backDb,1)} / 減衰 ${fmt(eFB.rejectDb,1)} dB</div>`,
+        readout:
+          `【配列模式図】<br>
+           設計 ${fmt(state.freq,1)} Hz / d=${fmt(state.dist,3)} m / d/c=${fmt(delayDc(state.dist,state.c),3)} ms<br>
+           Cardioid: 前 ${fmt(cFB.frontDb,1)} dB / 後 ${fmt(cFB.backDb,1)} dB / 後方減衰 ${fmt(cFB.rejectDb,1)} dB<br>
+           End-fire: 前 ${fmt(eFB.frontDb,1)} dB / 後 ${fmt(eFB.backDb,1)} dB / 後方減衰 ${fmt(eFB.rejectDb,1)} dB`
+      };
     });
   }
 
   function bindPolarHover(){
-    const cv = els.polarCanvas;
-    const tip = els.polarTip;
-    const box = tip.parentElement;
-
-    cv.addEventListener("mousemove", e=>{
-      const p = canvasPos(e,cv);
-      const cx = cv.width/2;
-      const cy = cv.height/2 + 8;
-      const dx = p.x - cx;
-      const dy = cy - p.y;
-      const theta = Math.atan2(dy,dx);
+    bindHover(els.polarCanvas, els.polarTip, "polar", p=>{
+      const theta = polarAngleAt(polarGeom(), p.x, p.y);
       hover.polar = {theta};
 
-      const cardio = buildPolarData("cardioid");
-      const endf = buildPolarData("endfire");
-      const globalMax = Math.max(cardio.maxAmp,endf.maxAmp);
-
+      const pd = getPolarData();
       const cAmp = polarAmpAtAngle("cardioid",theta);
       const eAmp = polarAmpAtAngle("endfire",theta);
-      const cNorm = 20*Math.log10(Math.max(1e-12, cAmp / (state.overlayNormalize ? cardio.maxAmp : globalMax)));
-      const eNorm = 20*Math.log10(Math.max(1e-12, eAmp / (state.overlayNormalize ? endf.maxAmp : globalMax)));
-
-      renderAll();
+      const cNorm = Math.max(DB_FLOOR, ampToDbRaw(cAmp * polarScale(pd,"cardioid")));
+      const eNorm = Math.max(DB_FLOOR, ampToDbRaw(eAmp * polarScale(pd,"endfire")));
 
       const angleDeg = (deg(theta)+360)%360;
-      const html =
-        `<div><span class="k">角度</span> <span class="em">${fmt(angleDeg,1)}°</span></div>
-         <div><span class="g">Cardioid</span> 正規化 ${fmt(Math.max(-60,cNorm),1)} dB / 絶対 ${fmt(ampToDbDisplay(cAmp),1)} dB</div>
-         <div><span class="p">End-fire</span> 正規化 ${fmt(Math.max(-60,eNorm),1)} dB / 絶対 ${fmt(ampToDbDisplay(eAmp),1)} dB</div>`;
-      showTip(tip,p.cssX,p.cssY,html,box);
-
-      setHoverReadout(
-        `【ポーラーパターン】<br>
-         角度 ${fmt(angleDeg,1)}°<br>
-         Cardioid: 正規化 ${fmt(Math.max(-60,cNorm),1)} dB / 絶対 ${fmt(ampToDbDisplay(cAmp),1)} dB<br>
-         End-fire: 正規化 ${fmt(Math.max(-60,eNorm),1)} dB / 絶対 ${fmt(ampToDbDisplay(eAmp),1)} dB`
-      );
-    });
-
-    cv.addEventListener("mouseleave", ()=>{
-      hover.polar = null;
-      hideTip(tip);
-      clearHoverReadout();
-      renderAll();
+      return {
+        tip:
+          `<div><span class="k">角度</span> <span class="em">${fmt(angleDeg,1)}°</span></div>
+           <div><span class="g">Cardioid</span> 正規化 ${fmt(cNorm,1)} dB / 絶対 ${fmt(ampToDbDisplay(cAmp),1)} dB</div>
+           <div><span class="p">End-fire</span> 正規化 ${fmt(eNorm,1)} dB / 絶対 ${fmt(ampToDbDisplay(eAmp),1)} dB</div>`,
+        readout:
+          `【ポーラーパターン】<br>
+           角度 ${fmt(angleDeg,1)}°<br>
+           Cardioid: 正規化 ${fmt(cNorm,1)} dB / 絶対 ${fmt(ampToDbDisplay(cAmp),1)} dB<br>
+           End-fire: 正規化 ${fmt(eNorm,1)} dB / 絶対 ${fmt(ampToDbDisplay(eAmp),1)} dB`
+      };
     });
   }
 
   function bindRejectHover(){
     const cv = els.rejectCanvas;
-    const tip = els.rejectTip;
-    const box = tip.parentElement;
-
-    cv.addEventListener("mousemove", e=>{
-      const p = canvasPos(e,cv);
+    bindHover(cv, els.rejectTip, "reject", p=>{
       const {x, ww} = graphInner(cv);
       const {fmin,fmax} = getBandRange();
       const f = clamp(fmin + (p.x-x)/ww*(fmax-fmin), fmin, fmax);
       hover.reject = {f};
 
-      renderAll();
-
       const c = frontBackAtFreq(f,"cardioid",state);
       const ef = frontBackAtFreq(f,"endfire",state);
-      const html =
-        `<div><span class="k">周波数</span> <span class="em">${fmt(f,2)} Hz</span></div>
-         <div><span class="g">Cardioid</span> 後方減衰 ${fmt(c.rejectDb,1)} dB</div>
-         <div><span class="p">End-fire</span> 後方減衰 ${fmt(ef.rejectDb,1)} dB</div>`;
-      showTip(tip,p.cssX,p.cssY,html,box);
-
-      setHoverReadout(
-        `【後方減衰比較】<br>
-         ${fmt(f,2)} Hz<br>
-         Cardioid: ${fmt(c.rejectDb,1)} dB<br>
-         End-fire: ${fmt(ef.rejectDb,1)} dB`
-      );
-    });
-
-    cv.addEventListener("mouseleave", ()=>{
-      hover.reject = null;
-      hideTip(tip);
-      clearHoverReadout();
-      renderAll();
+      return {
+        tip:
+          `<div><span class="k">周波数</span> <span class="em">${fmt(f,2)} Hz</span></div>
+           <div><span class="g">Cardioid</span> 後方減衰 ${fmt(c.rejectDb,1)} dB</div>
+           <div><span class="p">End-fire</span> 後方減衰 ${fmt(ef.rejectDb,1)} dB</div>`,
+        readout:
+          `【後方減衰比較】<br>
+           ${fmt(f,2)} Hz<br>
+           Cardioid: ${fmt(c.rejectDb,1)} dB<br>
+           End-fire: ${fmt(ef.rejectDb,1)} dB`
+      };
     });
   }
 
   function bindFreqHover(){
     const cv = els.freqCanvas;
-    const tip = els.freqTip;
-    const box = tip.parentElement;
-
-    cv.addEventListener("mousemove", e=>{
-      const p = canvasPos(e,cv);
+    bindHover(cv, els.freqTip, "freq", p=>{
       const {x, ww} = graphInner(cv);
       const {fmin,fmax} = getBandRange();
       const f = clamp(fmin + (p.x-x)/ww*(fmax-fmin), fmin, fmax);
       hover.freq = {f};
 
-      renderAll();
-
       const fb = frontBackAtFreq(f,state.detailMode,state);
-      const html =
-        `<div><span class="k">周波数</span> <span class="em">${fmt(f,2)} Hz</span></div>
-         <div><span class="k">モード</span> ${state.detailMode === "cardioid" ? "Cardioid" : "End-fire"}</div>
-         <div><span class="b">前方</span> ${fmt(fb.frontDb,1)} dB</div>
-         <div><span class="r">後方</span> ${fmt(fb.backDb,1)} dB</div>
-         <div><span class="em">後方減衰</span> ${fmt(fb.rejectDb,1)} dB</div>`;
-      showTip(tip,p.cssX,p.cssY,html,box);
-
-      setHoverReadout(
-        `【前方 / 後方レベル】<br>
-         ${state.detailMode === "cardioid" ? "Cardioid" : "End-fire"} / ${fmt(f,2)} Hz<br>
-         前方: ${fmt(fb.frontDb,1)} dB<br>
-         後方: ${fmt(fb.backDb,1)} dB<br>
-         後方減衰: ${fmt(fb.rejectDb,1)} dB`
-      );
-    });
-
-    cv.addEventListener("mouseleave", ()=>{
-      hover.freq = null;
-      hideTip(tip);
-      clearHoverReadout();
-      renderAll();
+      return {
+        tip:
+          `<div><span class="k">周波数</span> <span class="em">${fmt(f,2)} Hz</span></div>
+           <div><span class="k">モード</span> ${modeLabel(state.detailMode)}</div>
+           <div><span class="b">前方</span> ${fmt(fb.frontDb,1)} dB</div>
+           <div><span class="r">後方</span> ${fmt(fb.backDb,1)} dB</div>
+           <div><span class="em">後方減衰</span> ${fmt(fb.rejectDb,1)} dB</div>`,
+        readout:
+          `【前方 / 後方レベル】<br>
+           ${modeLabel(state.detailMode)} / ${fmt(f,2)} Hz<br>
+           前方: ${fmt(fb.frontDb,1)} dB<br>
+           後方: ${fmt(fb.backDb,1)} dB<br>
+           後方減衰: ${fmt(fb.rejectDb,1)} dB`
+      };
     });
   }
 
   function bindVectorHover(){
     const cv = els.vectorCanvas;
-    const tip = els.vectorTip;
-    const box = tip.parentElement;
-
-    cv.addEventListener("mousemove", e=>{
-      const p = canvasPos(e,cv);
-      const side = p.x < cv.width/2 ? 0 : 1;
+    bindHover(cv, els.vectorTip, "vector", p=>{
+      const side = p.x < size(cv).w/2 ? 0 : 1;
       hover.vector = {side};
-
-      renderAll();
 
       const theta = side === 0 ? 0 : Math.PI;
       const vec = sourceVectorsAt(state.detailMode, theta, state.freq, state);
       const angleLabel = side === 0 ? "前方 0°" : "後方 180°";
 
-      const html =
-        `<div><span class="k">モード</span> ${state.detailMode === "cardioid" ? "Cardioid" : "End-fire"}</div>
-         <div><span class="k">観測方向</span> <span class="em">${angleLabel}</span></div>
-         <div><span class="b">前ベクトル</span> |F|=${fmt(cabs(vec.front),3)} / ∠${fmt(deg(cphase(vec.front)),1)}°</div>
-         <div><span class="k" style="color:#E69F00">後ベクトル</span> |R|=${fmt(cabs(vec.rear),3)} / ∠${fmt(deg(cphase(vec.rear)),1)}°</div>
-         <div><span class="em">合成</span> |Σ|=${fmt(cabs(vec.sum),3)} / ${fmt(ampToDbDisplay(cabs(vec.sum)),1)} dB</div>`;
-      showTip(tip,p.cssX,p.cssY,html,box);
-
-      setHoverReadout(
-        `【複素ベクトル合成】<br>
-         ${state.detailMode === "cardioid" ? "Cardioid" : "End-fire"} / ${angleLabel}<br>
-         前ベクトル: |F|=${fmt(cabs(vec.front),3)} / ∠${fmt(deg(cphase(vec.front)),1)}°<br>
-         後ベクトル: |R|=${fmt(cabs(vec.rear),3)} / ∠${fmt(deg(cphase(vec.rear)),1)}°<br>
-         合成: |Σ|=${fmt(cabs(vec.sum),3)} / ${fmt(ampToDbDisplay(cabs(vec.sum)),1)} dB`
-      );
-    });
-
-    cv.addEventListener("mouseleave", ()=>{
-      hover.vector = null;
-      hideTip(tip);
-      clearHoverReadout();
-      renderAll();
+      return {
+        tip:
+          `<div><span class="k">モード</span> ${modeLabel(state.detailMode)}</div>
+           <div><span class="k">観測方向</span> <span class="em">${angleLabel}</span></div>
+           <div><span class="b">前ベクトル</span> |F|=${fmt(cabs(vec.front),3)} / ∠${fmt(deg(cphase(vec.front)),1)}°</div>
+           <div><span class="k" style="color:#E69F00">後ベクトル</span> |R|=${fmt(cabs(vec.rear),3)} / ∠${fmt(deg(cphase(vec.rear)),1)}°</div>
+           <div><span class="em">合成</span> |Σ|=${fmt(cabs(vec.sum),3)} / ${fmt(ampToDbDisplay(cabs(vec.sum)),1)} dB</div>`,
+        readout:
+          `【複素ベクトル合成】<br>
+           ${modeLabel(state.detailMode)} / ${angleLabel}<br>
+           前ベクトル: |F|=${fmt(cabs(vec.front),3)} / ∠${fmt(deg(cphase(vec.front)),1)}°<br>
+           後ベクトル: |R|=${fmt(cabs(vec.rear),3)} / ∠${fmt(deg(cphase(vec.rear)),1)}°<br>
+           合成: |Σ|=${fmt(cabs(vec.sum),3)} / ${fmt(ampToDbDisplay(cabs(vec.sum)),1)} dB`
+      };
     });
   }
 
   // =========================================================
   // Events
   // =========================================================
-  els.freq.addEventListener("input", e => { state.freq = +e.target.value; renderAll(); });
-  els.dist.addEventListener("input", e => { state.dist = +e.target.value; renderAll(); });
-  els.soundSpeed.addEventListener("input", e => { state.c = +e.target.value; renderAll(); });
-  els.detailMode.addEventListener("change", e => { state.detailMode = e.target.value; renderAll(); });
-  els.cardRearGain.addEventListener("input", e => { state.cardRearGainDb = +e.target.value; renderAll(); });
-  els.endFrontGain.addEventListener("input", e => { state.endFrontGainDb = +e.target.value; renderAll(); });
+  els.freq.addEventListener("input", e => { state.freq = +e.target.value; requestRender(); });
+  els.dist.addEventListener("input", e => { state.dist = +e.target.value; requestRender(); });
+  els.soundSpeed.addEventListener("input", e => { state.c = +e.target.value; requestRender(); });
+  els.detailMode.addEventListener("change", e => { state.detailMode = e.target.value; requestRender(); });
+  els.cardRearGain.addEventListener("input", e => { state.cardRearGainDb = +e.target.value; requestRender(); });
+  els.endFrontGain.addEventListener("input", e => { state.endFrontGainDb = +e.target.value; requestRender(); });
 
   els.bandMin.addEventListener("input", e => {
     state.bandMin = +e.target.value;
     if(state.bandMin >= state.bandMax){
       state.bandMax = state.bandMin + 5;
-      els.bandMax.value = state.bandMax;
     }
-    renderAll();
+    requestRender();
   });
   els.bandMax.addEventListener("input", e => {
     state.bandMax = +e.target.value;
     if(state.bandMax <= state.bandMin){
       state.bandMin = state.bandMax - 5;
-      els.bandMin.value = state.bandMin;
     }
-    renderAll();
+    requestRender();
   });
 
-  els.showTheory.addEventListener("change", e => { state.showTheory = e.target.checked; renderAll(); });
-  els.showLabels.addEventListener("change", e => { state.showLabels = e.target.checked; renderAll(); });
-  els.overlayNormalize.addEventListener("change", e => { state.overlayNormalize = e.target.checked; renderAll(); });
+  els.showTheory.addEventListener("change", e => { state.showTheory = e.target.checked; requestRender(); });
+  els.showLabels.addEventListener("change", e => { state.showLabels = e.target.checked; requestRender(); });
+  els.overlayNormalize.addEventListener("change", e => { state.overlayNormalize = e.target.checked; requestRender(); });
 
   // applyPreset: 音速 c はユーザー設定を維持したまま周波数・距離だけリセット
   function applyPreset(f){
@@ -1597,12 +1582,12 @@
     state.dist = quarterWave(f, state.c);
     state.cardRearGainDb = 0;
     state.endFrontGainDb = 0;
-    renderAll();
+    requestRender();
   }
   els.preset63.addEventListener("click", ()=>applyPreset(63));
   els.preset80.addEventListener("click", ()=>applyPreset(80));
   els.preset100.addEventListener("click", ()=>applyPreset(100));
-  els.applyQuarter.addEventListener("click", ()=>{ state.dist = quarterWave(state.freq, state.c); renderAll(); });
+  els.applyQuarter.addEventListener("click", ()=>{ state.dist = quarterWave(state.freq, state.c); requestRender(); });
 
   els.presetReset.addEventListener("click", ()=>{
     state.freq = 80.0;
@@ -1616,12 +1601,21 @@
     state.showTheory = true;
     state.showLabels = true;
     state.overlayNormalize = true;
-    renderAll();
+    requestRender();
+  });
+
+  // ウィンドウを別のモニターへ移したりズームしたりして DPR が変わったら描画バッファを作り直す
+  window.addEventListener("resize", ()=>{
+    if((window.devicePixelRatio || 1) !== DPR){
+      setupCanvases(CANVASES);
+      requestRender();
+    }
   });
 
   // =========================================================
   // Init
   // =========================================================
+  setupCanvases(CANVASES);
   bindLayoutHover();
   bindPolarHover();
   bindRejectHover();
