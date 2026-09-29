@@ -38,8 +38,12 @@ h1 small{font-weight:400;color:var(--fg3);font-size:12px;margin-left:8px}
 .spacer{flex:1}
 .iconbtn{background:var(--panel2);border:1px solid var(--line);color:var(--fg2);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit}
 .iconbtn:hover{border-color:var(--accent);color:var(--accent)}
-.tabs{display:flex;gap:4px;margin-top:10px}
-.tab{background:none;border:none;border-bottom:2px solid transparent;color:var(--fg2);padding:8px 14px;font-size:14px;font-weight:550;cursor:pointer;font-family:inherit;border-radius:6px 6px 0 0}
+.tabs{display:flex;gap:4px;margin-top:10px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.hbtns{display:flex;gap:8px;flex-wrap:wrap}
+.mpick,.mmenu,.mres{display:none}
+.picker[hidden],.opbar[hidden]{display:none}
+.tab{flex:none;white-space:nowrap;background:none;border:none;border-bottom:2px solid transparent;color:var(--fg2);padding:8px 14px;font-size:14px;font-weight:550;cursor:pointer;font-family:inherit;border-radius:6px 6px 0 0}
 .tab:hover{color:var(--fg);background:var(--panel2)}
 .tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
 .chips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 0 12px;border-top:1px solid var(--line2);margin-top:-1px}
@@ -137,6 +141,14 @@ ul.notes li::marker{color:var(--fg3)}
 .given>div{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dotted var(--line2)}
 .given .gl{color:var(--fg2)}
 .given .gv{font-family:var(--mono);font-weight:600;text-align:right}
+label.f>.ev{display:block;font-family:var(--mono);font-size:12.5px;color:var(--accent);margin-top:3px}
+label.f>.ev:empty{display:none}
+.evbad{color:var(--bad);font-family:var(--sans)}
+table.rows input.bad{border-color:var(--bad);outline-color:var(--bad)}
+.incard{position:relative}
+.opbar{position:absolute;left:10px;right:10px;z-index:15;display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.opbar button{flex:1;min-width:0;height:40px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);border-radius:7px;font-size:18px;font-family:var(--mono);cursor:pointer;touch-action:manipulation}
+.opbar button:active{background:var(--accent2);color:var(--accent)}
 .err{background:var(--warnbg);border:1px solid var(--warn);color:var(--warn);border-radius:8px;padding:12px 14px;font-size:13.5px}
 footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;color:var(--fg3);font-size:11.5px;line-height:1.6}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 18px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
@@ -149,8 +161,51 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;color:var(--fg3);font-
   table.rows th{font-size:10.5px}
   .hd .v{font-size:20px}
 }
+/* ---- スマートフォン（画面のみ。印刷には効かせない） ---- */
+@media screen and (max-width:720px){
+  .hwrap{padding:8px 10px}
+  .htop{flex-wrap:nowrap;gap:8px;position:relative}
+  h1,.search,.tabs,.chips,.htop>.spacer{display:none}
+  .mpick{display:flex;align-items:center;gap:6px;flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:8px 12px;font-size:15px;font-weight:600;font-family:inherit;text-align:left;cursor:pointer}
+  .mpick .pn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mpick .caret{color:var(--fg3);font-size:12px}
+  .mmenu{display:block;font-size:20px;line-height:1;padding:7px 14px}
+  .hbtns{display:none}
+  header.menu-open .hbtns{display:flex;flex-direction:column;gap:4px;position:absolute;right:0;top:calc(100% + 6px);z-index:30;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;box-shadow:0 6px 20px rgba(0,0,0,.2);min-width:200px}
+  header.menu-open .hbtns .iconbtn{font-size:15px;padding:10px 14px;text-align:left}
+  main{padding-bottom:96px}
+  .calc-title{font-size:18px}
+  input[type=text],select,table.rows input,table.rows select{font-size:16px}
+  table.rows input,table.rows select{padding:6px 5px}
+  #out .card>h2.fx{cursor:pointer;-webkit-user-select:none;user-select:none}
+  #out .card>h2.fx::after{content:' ▾'}
+  #out .card.fold>h2.fx{margin:0}
+  #out .card.fold>h2.fx::after{content:' ▸ タップで表示';letter-spacing:0}
+  #out .card.fold>:not(h2){display:none}
+  .mres:not([hidden]){display:flex;align-items:baseline;gap:10px;position:fixed;left:0;right:0;bottom:0;z-index:25;background:var(--panel);border:none;border-top:1px solid var(--line);border-left:4px solid var(--accent);padding:10px 16px calc(10px + env(safe-area-inset-bottom));font-family:inherit;color:var(--fg);text-align:left;cursor:pointer;box-shadow:0 -4px 14px rgba(0,0,0,.08)}
+  .mres .ml{flex:1;min-width:0;font-size:12.5px;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mres .mv{font-family:var(--mono);font-size:20px;font-weight:650;white-space:nowrap}
+  .mres.ok{border-left-color:var(--ok)}
+  .mres.ok .mv{color:var(--ok)}
+  .mres.warn{border-left-color:var(--warn)}
+  .mres.warn .mv{color:var(--warn)}
+  .mres.bad{border-left-color:var(--bad)}
+  .mres.bad .mv{color:var(--bad)}
+  .mres.err .mv{font-family:var(--sans);font-size:14px;color:var(--warn)}
+  .toast{bottom:84px}
+}
+.picker{position:fixed;top:0;right:0;bottom:0;left:0;z-index:40;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.pk-top{position:sticky;top:0;display:flex;gap:8px;padding:10px;background:var(--panel);border-bottom:1px solid var(--line)}
+.pk-top input{flex:1;min-width:0;font-size:16px;font-family:var(--sans)}
+.pk-list{padding:4px 10px 40px}
+.pk-cat{font-size:12px;font-weight:650;color:var(--fg3);letter-spacing:.06em;margin:16px 4px 6px}
+.pk-it{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:6px;color:var(--fg);font-family:inherit;cursor:pointer}
+.pk-it[aria-current="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.pk-it .t{display:block;font-size:15px;font-weight:600}
+.pk-it .s{font-size:12px;color:var(--fg2);line-height:1.45;margin-top:2px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.pk-none{color:var(--fg3);font-size:13px;margin:16px 4px}
 @media print{
-  header,.chips,.rowadd,.rowdel,.iconbtn,footer{display:none!important}
+  header,.mres,.picker,.opbar,.chips,.rowadd,.rowdel,.iconbtn,footer{display:none!important}
   body{background:#fff;font-size:11pt}
   .grid{grid-template-columns:1fr}
   .card{break-inside:avoid;border-color:#bbb}
@@ -166,13 +221,17 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;color:var(--fg3);font-
   <div class="hwrap">
     <div class="htop">
       <h1>電気通信工事・音響・映像 計算機<small>愛称募集中</small></h1>
+      <button type="button" class="mpick" id="btnPick" aria-haspopup="dialog" title="機能を選ぶ"><span class="pn" id="pickName"></span><span class="caret" aria-hidden="true">▾</span></button>
       <span class="spacer"></span>
       <input class="search" id="q" type="text" placeholder="機能を検索…" aria-label="機能を検索">
+      <button type="button" class="iconbtn mmenu" id="btnMenu" aria-expanded="false" aria-controls="hbtns" aria-label="メニュー">⋯</button>
+      <div class="hbtns" id="hbtns">
       <button class="iconbtn" id="btnCopy" title="計算結果と導出をテキストでコピー">結果をコピー</button>
       <button class="iconbtn" id="btnAdd" title="表示中の計算（入力・結果・導出）を計算書に追加">計算書に追加</button>
       <button class="iconbtn" id="btnReport" title="追加した計算をまとめて見る・印刷する">計算書（0）</button>
       <button class="iconbtn" id="btnPrint">印刷</button>
       <button class="iconbtn" id="btnTheme">配色</button>
+      </div>
     </div>
     <div class="tabs" id="tabs" role="tablist"></div>
     <div class="chips" id="chips"></div>
@@ -185,7 +244,7 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;color:var(--fg3);font-
   <p class="calc-meta" id="cmeta"></p>
   <div class="grid">
     <div>
-      <div class="card"><div class="card-h"><h2>入力</h2><button type="button" class="iconbtn resetbtn" id="btnReset" title="この計算機の入力をすべて既定値に戻す">既定値に戻す</button></div><form id="form" autocomplete="off"></form></div>
+      <div class="card incard"><div class="opbar" id="opbar" hidden><button type="button" data-op="+">＋</button><button type="button" data-op="-">−</button><button type="button" data-op="*">×</button><button type="button" data-op="/">÷</button><button type="button" data-op="^">^</button><button type="button" data-op="(">(</button><button type="button" data-op=")">)</button></div><div class="card-h"><h2>入力</h2><button type="button" class="iconbtn resetbtn" id="btnReset" title="この計算機の入力をすべて既定値に戻す">既定値に戻す</button></div><form id="form" autocomplete="off"></form></div>
     </div>
     <div id="out"></div>
   </div>
@@ -209,11 +268,16 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;color:var(--fg3);font-
   入力値はブラウザ内（localStorage）にのみ保存されます。<span id="appver"></span>
 </footer>
 <div class="toast" id="toast"></div>
+<button type="button" class="mres" id="mres" hidden title="結果の位置へ移動"><span class="ml" id="mresL"></span><span class="mv" id="mresV"></span></button>
+<div class="picker" id="picker" hidden role="dialog" aria-modal="true" aria-label="機能を選ぶ">
+  <div class="pk-top"><input id="pq" type="text" placeholder="機能を検索…" aria-label="機能を検索"><button type="button" class="iconbtn" id="pkClose">閉じる</button></div>
+  <div class="pk-list" id="pkList"></div>
+</div>
 <script>
 "use strict";
 /* 版数。計算結果が変わる変更・機能追加で上げ、旧版は history/ に保存して CHANGELOG.md に記録する。
    コピー・印刷した計算書に載るので、どの版の式で計算したかを後から追える。 */
-var APP_VERSION = '0.8.0';
+var APP_VERSION = '0.9.0';
 /* ============================================================
    共通ヘルパ
    ============================================================ */
@@ -266,6 +330,122 @@ function opt(x, dflt){
   if(x === '' || x === null || x === undefined) return dflt;
   var n = Number(x);
   return isFinite(n) ? n : dflt;
+}
+
+/* ============================================================
+   数値入力欄の数式（四則演算・べき乗・括弧）
+   eval は使わず、下の文法だけを受け付ける再帰下降パーサで計算する。
+     式   = 項 { (+|-) 項 }
+     項   = 単項 { (*|/) 単項 }
+     単項 = (+|-) 単項 | 累乗
+     累乗 = 要素 [ ^ 単項 ]        … 右結合。-2^2 = -4、2^3^2 = 512、2^-1 = 0.5
+     要素 = 数値 | ( 式 )          … 数値は 1.5、.5、1e3 の形
+   全角の数字・記号、×・÷・−、** も受け付ける。3 桁区切りのカンマ（1,200）は取り除く。
+   ============================================================ */
+var PLAIN_NUM = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+function normExpr(s){
+  return String(s)
+    .replace(/[！-～]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); })
+    .replace(/[×✕]/g, '*').replace(/÷/g, '/').replace(/[−–—ー]/g, '-').replace(/\*\*/g, '^')
+    .replace(/(\d),(?=\d{3}(\D|$))/g, '$1')
+    .replace(/[\s　]+/g, '');
+}
+function evalExpr(src){
+  var s = normExpr(src), i = 0;
+  if(s === '') throw new Error('式が空です');
+  function fail(msg){ throw new Error(msg); }
+  function num(){
+    var m = /^(\d+\.?\d*|\.\d+)(e[+-]?\d+)?/i.exec(s.slice(i));
+    if(!m) fail(i < s.length ? '「' + s.charAt(i) + '」の位置で数値または ( が必要です' : '式が途中で終わっています');
+    i += m[0].length;
+    return Number(m[0]);
+  }
+  function atom(){
+    if(s.charAt(i) === '('){
+      i++;
+      var v = expr();
+      if(s.charAt(i) !== ')') fail(') が閉じていません');
+      i++;
+      return v;
+    }
+    return num();
+  }
+  function power(){
+    var b = atom();
+    if(s.charAt(i) === '^'){ i++; return Math.pow(b, unary()); }
+    return b;
+  }
+  function unary(){
+    var c = s.charAt(i);
+    if(c === '-'){ i++; return -unary(); }
+    if(c === '+'){ i++; return unary(); }
+    return power();
+  }
+  function term(){
+    var v = unary();
+    for(;;){
+      var c = s.charAt(i);
+      if(c === '*'){ i++; v *= unary(); }
+      else if(c === '/'){ i++; v /= unary(); }
+      else return v;
+    }
+  }
+  function expr(){
+    var v = term();
+    for(;;){
+      var c = s.charAt(i);
+      if(c === '+'){ i++; v += term(); }
+      else if(c === '-'){ i++; v -= term(); }
+      else return v;
+    }
+  }
+  var v = expr();
+  if(i < s.length) fail('「' + s.charAt(i) + '」は使えません（使えるのは数値と + − × ÷ ^ ( ) です）');
+  if(!isFinite(v)) fail('計算結果が有限の数になりません（0 での割り算など）');
+  return Number(v.toPrecision(15));   // 0.1+0.2 のような 2 進誤差の尾を落とす
+}
+/** 数値欄の入力が数式か（そのままの数値・空欄なら false） */
+function isExpr(raw){
+  var t = String(raw === undefined || raw === null ? '' : raw).trim();
+  return t !== '' && !PLAIN_NUM.test(t);
+}
+/**
+ * 入力状態のうち数値欄の数式を計算した値に置き換えた写しを返す。compute() と show() にはこちらを渡す。
+ * 計算できない式は、表示中の欄なら errs に「欄名：理由」を積む（非表示の欄は無視）。
+ */
+function evalInputs(c, st){
+  var out = {}, errs = [], k, inp, i;
+  function one(raw, name){
+    if(!isExpr(raw)) return raw;
+    try { return String(evalExpr(raw)); }
+    catch(e){ errs.push(name + '：' + e.message); return 'NaN'; }
+  }
+  for(k in st) out[k] = st[k];
+  // 表示条件は数値欄の値に依存しうるので、先に表示を問わず数値を求めてから、表示中の欄の誤りだけを残す
+  for(var pass = 0; pass < 2; pass++){
+    errs = [];
+    for(i = 0; i < c.inputs.length; i++){
+      inp = c.inputs[i];
+      var shown = pass === 0 || typeof inp.show !== 'function' || !!inp.show(out);
+      var n0 = errs.length;
+      if(inp.type === 'rows'){
+        var rs = st[inp.k] || [], ro = [];
+        for(var r = 0; r < rs.length; r++){
+          var o = {};
+          for(var j = 0; j < inp.cols.length; j++){
+            var col = inp.cols[j], raw = rs[r][col.k];
+            o[col.k] = (col.type === 'num') ? one(raw, inp.label + ' #' + (r+1) + ' ' + col.label) : raw;
+          }
+          ro.push(o);
+        }
+        out[inp.k] = ro;
+      } else if(inp.type !== 'sel' && inp.type !== 'text'){
+        out[inp.k] = one(st[inp.k], inp.label);
+      }
+      if(!shown) errs.length = n0;
+    }
+  }
+  return { st: out, errs: errs };
 }
 function esc(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -3236,6 +3416,7 @@ function visible(inp, st){
 /** 表示中の入力欄の構成（欄の並びと動的な選択肢）を表す文字列。変化したらフォームを描き直す */
 function formSig(c, st){
   var s = [];
+  st = evalInputs(c, st).st;
   for(var i=0;i<c.inputs.length;i++){
     var inp = c.inputs[i];
     if(!visible(inp, st)) continue;
@@ -3253,10 +3434,11 @@ function formSig(c, st){
    ============================================================ */
 function renderForm(){
   var c = calcById(curId), st = getState(c), form = document.getElementById('form');
+  var ev = evalInputs(c, st).st;
   var h = '';
   for(var i=0;i<c.inputs.length;i++){
     var inp = c.inputs[i];
-    if(!visible(inp, st)) continue;
+    if(!visible(inp, ev)) continue;
     h += '<label class="f" data-k="'+esc(inp.k)+'">';
     h += '<span class="lb">'+mf(inp.label)+'</span>';
     if(inp.type === 'rows'){
@@ -3274,15 +3456,26 @@ function renderForm(){
       }
       h += '</select>';
     } else {
-      var type = (inp.type === 'text') ? 'text' : 'number';
-      var stepAttr = (type === 'number') ? ' step="'+esc(inp.step || 'any')+'"' : '';
-      var inputHtml = '<input type="'+type+'"'+stepAttr+' data-in="'+esc(inp.k)+'" value="'+esc(st[inp.k])+'">';
+      // 数値欄も数式を受け付けるため type="text"。inputmode でスマートフォンは数字キーを出す（演算子は opbar で補う）
+      var isNum = inp.type !== 'text';
+      var inputHtml = '<input type="text"'+(isNum ? ' inputmode="decimal" data-num="1"' : '')+' data-in="'+esc(inp.k)+'" value="'+esc(st[inp.k])+'"'+(isNum ? ' spellcheck="false" autocapitalize="off"' : '')+'>';
       h += inp.unit ? ('<span class="inrow">'+inputHtml+'<span class="unit">'+mf(inp.unit)+'</span></span>') : inputHtml;
+      if(isNum) h += '<span class="ev" data-ev="'+esc(inp.k)+'">'+evPreview(st[inp.k])+'</span>';
     }
     if(inp.hint) h += '<span class="hint">'+mf(inp.hint)+'</span>';
     h += '</label>';
   }
   form.innerHTML = h;
+}
+/** 数値欄の下に出す「= 計算結果」。そのままの数値・空欄なら何も出さない */
+function evPreview(raw){
+  if(!isExpr(raw)) return '';
+  try { return '= ' + esc(fx(evalExpr(raw), 10)); }
+  catch(e){ return '<span class="evbad">' + esc(e.message) + '</span>'; }
+}
+function evalOk(raw){
+  if(!isExpr(raw)) return true;
+  try { evalExpr(raw); return true; } catch(e){ return false; }
 }
 function renderRows(inp, rows){
   var h = '<table class="rows"><thead><tr>';
@@ -3302,7 +3495,7 @@ function renderRows(inp, rows){
         }
         h += '</select>';
       } else {
-        h += '<input type="'+(col.type==='text'?'text':'number')+'" step="any" data-row="'+esc(inp.k)+'" data-ri="'+r+'" data-ck="'+esc(col.k)+'" value="'+esc(val)+'">';
+        h += '<input type="text"'+(col.type==='text' ? '' : ' inputmode="decimal" data-num="1" spellcheck="false" autocapitalize="off"'+(evalOk(val) ? '' : ' class="bad"'))+' data-row="'+esc(inp.k)+'" data-ri="'+r+'" data-ck="'+esc(col.k)+'" value="'+esc(val)+'">';
       }
       h += '</td>';
     }
@@ -3318,14 +3511,51 @@ function renderRows(inp, rows){
 function renderOut(){
   var c = calcById(curId), st = getState(c), out = document.getElementById('out'), res;
   try {
-    res = c.compute(st);
+    var ev = evalInputs(c, st);
+    if(ev.errs.length) throw new Error('入力の式を計算できません。' + ev.errs.join('／'));
+    res = c.compute(ev.st);
   } catch(e){
     lastOut = null;
     out.innerHTML = '<div class="card"><h2>結果</h2><div class="err">'+esc(e.message)+'</div></div>';
+    afterOut(null);
     return;
   }
   lastOut = res;
   out.innerHTML = outHtml(c, st, res);
+  afterOut(res);
+}
+/* ---- スマートフォン向け：結果以外のカードの折りたたみと、画面下の結果バー ---- */
+var openCards = {};        // 見出し → 開いているか（計算機を切り替えても保つ）
+var resObserver = null, resInView = true, inputFocused = false;
+function isMobile(){ return !!(window.matchMedia && window.matchMedia('screen and (max-width:720px)').matches); }
+function afterOut(res){
+  var out = document.getElementById('out');
+  Array.prototype.forEach.call(out.querySelectorAll('.card>h2'), function(h){
+    var t = h.textContent;
+    if(t === '結果') return;
+    h.classList.add('fx');
+    if(!openCards[t]) h.parentNode.classList.add('fold');
+  });
+  var bar = document.getElementById('mres');
+  if(bar){
+    bar.className = 'mres';
+    var d = res && res.head && res.head[0];
+    if(d){
+      document.getElementById('mresL').textContent = plain(d.l).replace(/<[^>]*>/g, '');
+      document.getElementById('mresV').textContent = d.v + (d.u ? ' ' + plain(d.u) : '');
+      if(d.tone) bar.classList.add(d.tone);
+    } else {
+      document.getElementById('mresL').textContent = '結果';
+      document.getElementById('mresV').textContent = res ? '—' : '入力を確認してください';
+      if(!res) bar.classList.add('err');
+    }
+  }
+  if(resObserver && out.firstElementChild){ resObserver.disconnect(); resObserver.observe(out.firstElementChild); }
+  updateResBar();
+}
+function updateResBar(){
+  var bar = document.getElementById('mres');
+  if(bar) bar.hidden = resInView || inputFocused || reportView;
 }
 // 結果欄の HTML（計算書にも同じものを保存する）
 function outHtml(c, st, res){
@@ -3381,11 +3611,15 @@ function outHtml(c, st, res){
   }
   return h;
 }
+/** 数式で入力された値は「式 = 値」の形で記録する（計算書で入力の根拠を追えるように） */
+function withExpr(raw, val){
+  return isExpr(raw) ? String(raw).trim() + ' = ' + fx(Number(val), 10) : raw;
+}
 function givenHtml(c, st){
-  var h = '';
+  var h = '', ev = evalInputs(c, st).st;
   for(var i=0;i<c.inputs.length;i++){
     var inp = c.inputs[i];
-    if(!visible(inp, st)) continue;
+    if(!visible(inp, ev)) continue;
     if(inp.type === 'rows'){
       var n = 0, rs = st[inp.k] || [];
       for(var r=0;r<rs.length;r++){
@@ -3401,8 +3635,8 @@ function givenHtml(c, st){
     if(inp.type === 'sel'){
       var os = optionsFor(inp, st);
       for(var o=0;o<os.length;o++) if(String(os[o].v) === String(val)) val = os[o].t;
-    } else if(inp.unit){
-      val = val + ' ' + inp.unit;
+    } else {
+      val = (inp.type === 'text' ? val : withExpr(val, ev[inp.k])) + (inp.unit ? ' ' + inp.unit : '');
     }
     h += '<div><span class="gl">'+esc(inp.label)+'</span><span class="gv">'+esc(val)+'</span></div>';
   }
@@ -3434,16 +3668,17 @@ function outTextFor(c, st, lastOut, stamp){
     L.push('');
   }
   L.push('【入力値】');
+  var ev = evalInputs(c, st).st;
   for(var j=0;j<c.inputs.length;j++){
     var inp = c.inputs[j];
-    if(!visible(inp, st)) continue;
+    if(!visible(inp, ev)) continue;
     if(inp.type === 'rows'){
       var rs = st[inp.k] || [];
       for(var r=0;r<rs.length;r++){
         var parts = [];
         for(var k=0;k<inp.cols.length;k++){
           var vv = rs[r][inp.cols[k].k];
-          if(vv !== '' && vv !== undefined) parts.push(inp.cols[k].label+'='+vv);
+          if(vv !== '' && vv !== undefined) parts.push(inp.cols[k].label+'='+(inp.cols[k].type === 'num' ? withExpr(vv, ev[inp.k][r][inp.cols[k].k]) : vv));
         }
         if(parts.length) L.push('  '+inp.label+' #'+(r+1)+' : '+parts.join(', '));
       }
@@ -3452,7 +3687,8 @@ function outTextFor(c, st, lastOut, stamp){
       if(inp.type === 'sel'){
         var os = optionsFor(inp, st);
         for(var o=0;o<os.length;o++) if(String(os[o].v) === String(val)) val = os[o].t;
-      } else if(inp.unit) val = val + ' ' + inp.unit;
+      } else if(inp.type === 'text') val = val + (inp.unit ? ' ' + inp.unit : '');
+      else val = withExpr(val, ev[inp.k]) + (inp.unit ? ' ' + inp.unit : '');
       L.push('  '+inp.label+' : '+val);
     }
   }
@@ -3510,6 +3746,33 @@ function renderNav(){
   if(!shown) ch = '<span style="color:var(--fg3);font-size:13px">該当する機能がありません</span>';
   chips.innerHTML = ch;
 }
+function renderPicker(){
+  var q = (document.getElementById('pq').value || '').toLowerCase(), h = '', shown = 0;
+  for(var t=0;t<CATS.length;t++){
+    var part = '';
+    for(var j=0;j<CALCS.length;j++){
+      var c = CALCS[j];
+      if(c.cat !== CATS[t].id) continue;
+      if(q && (c.title + ' ' + c.sub + ' ' + c.id + ' ' + CATS[t].name).toLowerCase().indexOf(q) < 0) continue;
+      shown++;
+      part += '<button type="button" class="pk-it" data-id="'+esc(c.id)+'" aria-current="'+(c.id===curId)+'"><span class="t">'+mf(c.title)+'</span><span class="s">'+esc(c.sub)+'</span></button>';
+    }
+    if(part) h += '<div class="pk-cat">'+esc(CATS[t].name)+'</div>' + part;
+  }
+  document.getElementById('pkList').innerHTML = shown ? h : '<p class="pk-none">該当する機能がありません</p>';
+}
+function openPicker(on){
+  var pk = document.getElementById('picker');
+  pk.hidden = !on;
+  document.body.style.overflow = on ? 'hidden' : '';
+  if(on){
+    document.getElementById('pq').value = '';
+    renderPicker();
+    pk.scrollTop = 0;
+    var cur = pk.querySelector('.pk-it[aria-current="true"]');
+    if(cur && cur.scrollIntoView) cur.scrollIntoView({block:'center'});
+  }
+}
 function shortTitle(t){
   var i = t.indexOf('（');
   return (i > 0) ? t.slice(0, i) : t;
@@ -3521,6 +3784,7 @@ function selectCalc(id){
   curCat = c.cat;
   document.getElementById('ctitle').innerHTML = mf(c.title);
   document.getElementById('csub').textContent = c.sub;
+  document.getElementById('pickName').textContent = shortTitle(c.title);
   renderNav();
   renderForm();
   renderOut();
@@ -3583,6 +3847,7 @@ function setReportView(on){
   document.getElementById('reportView').hidden = !on;
   if(on) renderReport();
   updateReportBtn();
+  updateResBar();
   window.scrollTo(0, 0);
 }
 function renderReport(){
@@ -3715,6 +3980,8 @@ function init(){
       // 入力前後でフォームの構成が変わったときだけ描き直す。
       var sigBefore = formSig(c, st);
       st[key] = t.value;
+      var evs = document.querySelector('#form [data-ev="' + key + '"]');
+      if(evs) evs.innerHTML = evPreview(t.value);
       if(formSig(c, st) !== sigBefore){
         var pos = null;
         try { pos = t.selectionStart; } catch(e){}
@@ -3728,6 +3995,7 @@ function init(){
       renderOut(); persist();
     } else if(t.hasAttribute('data-row')){
       var rk = t.getAttribute('data-row'), ri = Number(t.getAttribute('data-ri')), ck = t.getAttribute('data-ck');
+      if(t.hasAttribute('data-num')) t.classList.toggle('bad', !evalOk(t.value));
       if(st[rk] && st[rk][ri]){ st[rk][ri][ck] = t.value; renderOut(); persist(); }
     }
   });
@@ -3795,6 +4063,7 @@ function init(){
   window.addEventListener('afterprint', function(){
     Array.prototype.forEach.call(document.querySelectorAll('#rlist details'), function(d){ d.open = d.getAttribute('data-was') === '1'; });
   });
+  initMobile();
   loadReport(); updateReportBtn();
   document.getElementById('appver').textContent = '　v' + APP_VERSION;
   document.getElementById('btnTheme').addEventListener('click', function(){
@@ -3808,6 +4077,99 @@ function init(){
     var th = localStorage.getItem(STORE_KEY+':theme');
     if(th) document.documentElement.setAttribute('data-theme', th);
   } catch(e){}
+}
+
+/* スマートフォン向けの操作（機能選択シート、メニュー、演算子キー、結果バー、折りたたみ） */
+function initMobile(){
+  var header = document.querySelector('header'), menuBtn = document.getElementById('btnMenu');
+  function setMenu(on){
+    header.classList.toggle('menu-open', on);
+    menuBtn.setAttribute('aria-expanded', String(on));
+  }
+  menuBtn.addEventListener('click', function(e){ e.stopPropagation(); setMenu(!header.classList.contains('menu-open')); });
+  document.getElementById('hbtns').addEventListener('click', function(e){ if(e.target.closest('button')) setMenu(false); });
+  document.addEventListener('click', function(e){
+    if(header.classList.contains('menu-open') && !e.target.closest('#hbtns')) setMenu(false);
+  });
+
+  document.getElementById('btnPick').addEventListener('click', function(){ openPicker(true); });
+  document.getElementById('pkClose').addEventListener('click', function(){ openPicker(false); });
+  document.getElementById('pq').addEventListener('input', renderPicker);
+  document.getElementById('pkList').addEventListener('click', function(e){
+    var b = e.target.closest('[data-id]');
+    if(!b) return;
+    openPicker(false);
+    selectCalc(b.getAttribute('data-id'));
+    window.scrollTo(0, 0);
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){ if(!document.getElementById('picker').hidden) openPicker(false); setMenu(false); }
+  });
+
+  // 結果カードの見出しをタップして開閉（スマートフォン表示のときだけ）
+  document.getElementById('out').addEventListener('click', function(e){
+    var h = e.target.closest('.card>h2.fx');
+    if(!h || !isMobile()) return;
+    var card = h.parentNode, open = card.classList.contains('fold');
+    card.classList.toggle('fold', !open);
+    openCards[h.textContent] = open;
+  });
+
+  // 画面下の結果バー：結果カードが画面外にあるときだけ出す
+  var bar = document.getElementById('mres');
+  bar.addEventListener('click', function(){
+    var t = document.getElementById('out').firstElementChild;
+    if(t) window.scrollTo(0, t.getBoundingClientRect().top + window.pageYOffset - document.querySelector('header').offsetHeight - 8);
+  });
+  if(window.IntersectionObserver){
+    resObserver = new IntersectionObserver(function(ents){
+      resInView = ents[ents.length - 1].isIntersecting;
+      updateResBar();
+    });
+    var first = document.getElementById('out').firstElementChild;
+    if(first) resObserver.observe(first);
+  }
+
+  // 演算子キー：iPhone の数字キーボードにない + × ÷ ^ ( ) を補う。タッチ操作の端末で数値欄にいるときだけ出す
+  var form = document.getElementById('form'), opbar = document.getElementById('opbar'), target = null, hideT = null;
+  var coarse = !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches);
+  function placeOpbar(){
+    if(!target) return;
+    var card = opbar.parentNode;
+    opbar.hidden = false;
+    var top = target.getBoundingClientRect().top - card.getBoundingClientRect().top - opbar.offsetHeight - 6;
+    opbar.style.top = Math.max(-opbar.offsetHeight, top) + 'px';
+  }
+  form.addEventListener('focusin', function(e){
+    clearTimeout(hideT);
+    inputFocused = true; updateResBar();
+    if(coarse && e.target.hasAttribute('data-num')){ target = e.target; placeOpbar(); }
+    else { target = null; opbar.hidden = true; }
+  });
+  form.addEventListener('focusout', function(){
+    hideT = setTimeout(function(){
+      if(form.contains(document.activeElement)) return;
+      inputFocused = false; target = null; opbar.hidden = true; updateResBar();
+    }, 150);
+  });
+  function press(e){
+    var b = e.target.closest('[data-op]');
+    e.preventDefault();   // 入力欄からフォーカスを外さない（キーボードを閉じない）
+    if(!b || !target) return;
+    var op = b.getAttribute('data-op'), v = target.value, a = target.selectionStart, z = target.selectionEnd;
+    if(a === null || a === undefined){ a = z = v.length; }
+    target.value = v.slice(0, a) + op + v.slice(z);
+    try { target.setSelectionRange(a + op.length, a + op.length); } catch(err){}
+    var key = target.getAttribute('data-in');
+    target.dispatchEvent(new Event('input', {bubbles:true}));
+    // 欄の構成が変わってフォームが描き直された場合は新しい欄に付け替える
+    if(!document.body.contains(target) && key){
+      target = document.querySelector('#form [data-in="' + key + '"]');
+    }
+    placeOpbar();
+  }
+  opbar.addEventListener('touchstart', press, {passive:false});
+  opbar.addEventListener('mousedown', press);
 }
 
 if(typeof document !== 'undefined' && document.getElementById){
